@@ -82,7 +82,7 @@ app.post('/webhooks/stripe', async (req, res) => {
 
   try {
     const { default: Stripe } = await import('stripe');
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2025-01-27.acacia' });
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
     const event = stripe.webhooks.constructEvent(
       req.body, sig, process.env.STRIPE_WEBHOOK_SECRET!
     );
