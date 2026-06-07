@@ -1,0 +1,98 @@
+# ============================================================
+# Lime AI Platform — Docker Compose (Production)
+# ============================================================
+
+version: '3.9'
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: limeai_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: limeai_prod
+      POSTGRES_USER: limeai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U limeai -d limeai_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - limeai_net
+
+  # ── Backend API ────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: limeai_backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://limeai:${POSTGRES_PASSWORD}@postgres:5432/limeai_prod
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLAUDE_MODEL: claude-sonnet-4-20250514
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      DASHBOARD_URL: ${DASHBOARD_URL}
+      API_URL: ${API_URL}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - limeai_net
+
+  # ── Nginx Reverse Proxy ────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: limeai_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./dashboard:/usr/share/nginx/html:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - backend
+    networks:
+      - limeai_net
+
+  # ── Certbot (SSL) ──────────────────────────
+  certbot:
+    image: certbot/certbot
+    container_name: limeai_certbot
+    volumes:
+      - ./docker/ssl:/etc/letsencrypt
+      - ./docker/certbot-webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+volumes:
+  postgres_data:
+  nginx_cache:
+
+networks:
+  limeai_net:
+    driver: bridge
