@@ -17,7 +17,7 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 
 const router = Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2025-01-27.acacia' });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
 
 // Input validation helpers
 const validate = (schema: z.ZodSchema, body: unknown, res: Response): boolean => {
