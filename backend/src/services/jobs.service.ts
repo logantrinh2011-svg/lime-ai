@@ -5,7 +5,7 @@ import { logger } from '../utils/logger.js';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const MODEL = 'gemini-3.5-flash';
 
-const CODE_GEN_SYSTEM = `You are Lime AI, a master Roblox Luau developer with full control of Roblox Studio.
+const CODE_GEN_SYSTEM = `You are lychee AI, a master Roblox Luau developer with full control of Roblox Studio.
 
 When the user describes what they want, generate COMPLETE, WORKING Luau code that builds EVERYTHING programmatically.
 
