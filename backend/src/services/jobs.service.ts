@@ -103,55 +103,7 @@ export async function getJobStatus(jobId: string, userId: string) {
   if (!rows[0]) return null;
   return { status: rows[0].status, explanation: rows[0].explanation, scriptName: rows[0].script_name, error: rows[0].error_message };
 }
-export async function createEditJob(
-  userId: string, prompt: string, existingCode: string, scriptName: string
-): Promise<{ jobId: string }> {
-  const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO code_jobs (user_id, prompt, script_type, insert_location, status)
-     VALUES ($1, $2, 'Script', 'ServerScriptService', 'pending') RETURNING id`,
-    [userId, `EDIT: ${prompt}`]
-  );
-  const jobId = rows[0].id;
-  setImmediate(() => processEditJob(jobId, userId, prompt, existingCode, scriptName));
-  return { jobId };
-}
 
-async function processEditJob(
-  jobId: string, userId: string, prompt: string, existingCode: string, scriptName: string
-): Promise<void> {
-  await db.query(`UPDATE code_jobs SET status = 'processing' WHERE id = $1`, [jobId]);
-  try {
-    const editPrompt = `You are editing an existing Roblox Luau script called "${scriptName}".
-Existing code:
-\`\`\`lua
-${existingCode}
-\`\`\`
-User wants to: ${prompt}
-Output ONLY a JSON object: {"scriptName": "${scriptName}", "scriptType": "Script", "insertLocation": "ServerScriptService", "code": "-- full updated luau code", "explanation": "one sentence"}
-Keep everything that works, only change what the user asked. Output ONLY the JSON.`;
-
-    const model = genAI.getGenerativeModel({ model: MODEL });
-    const result = await model.generateContent(editPrompt);
-    const rawText = result.response.text();
-    const clean = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const parsed = JSON.parse(clean);
-    if (!parsed.code) throw new Error('Missing code');
-
-    await db.query(
-      `UPDATE code_jobs SET status = 'completed', generated_code = $1,
-       explanation = $2, script_name = $3, script_type = $4, insert_location = $5, completed_at = NOW() WHERE id = $6`,
-      [parsed.code, parsed.explanation, scriptName, parsed.scriptType || 'Script', parsed.insertLocation || 'ServerScriptService', jobId]
-    );
-    logger.info('Edit job completed', { jobId, scriptName });
-  } catch (err: unknown) {
-    const error = err as Error;
-    logger.error('Edit job failed', { jobId, error: error.message });
-    await db.query(
-      `UPDATE code_jobs SET status = 'failed', error_message = $1 WHERE id = $2`,
-      [error.message, jobId]
-    );
-  }
-}
 export async function getUserJobHistory(userId: string, limit = 20) {
   const { rows } = await db.query(
     `SELECT id, prompt, script_name, script_type, status, created_at, completed_at, inserted_at, insert_location
