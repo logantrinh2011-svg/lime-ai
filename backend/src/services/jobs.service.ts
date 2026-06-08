@@ -6,14 +6,21 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const MODEL = 'gemini-3.5-flash';
 
 const CODE_GEN_SYSTEM = `You are Lime AI, an expert Roblox Luau code generator.
-When the user describes what they want, generate COMPLETE, WORKING Luau code.
-RULES:
+
+When the user describes what they want, generate COMPLETE, WORKING Luau code that creates EVERYTHING programmatically. 
+
+CRITICAL RULES:
+- Create ALL required instances in code using Instance.new() — never assume anything already exists
+- If the user wants a sword, create the Tool, Handle, and blade Part all in code
+- If the user wants a GUI, create all the Frames, Buttons, Labels in code
+- If the user wants an NPC, create the model and humanoid in code
+- Everything must be self contained in one script that runs and works immediately
 - Always output a JSON object with this exact structure:
   {"scriptName": "DescriptiveName", "code": "-- full luau code here", "explanation": "One sentence explanation"}
 - The code field must contain ONLY valid Luau code, no markdown, no backticks
-- Always write production-ready code with error handling
-- Add clear comments in the code
-- Output ONLY the JSON object, nothing else.`;
+- Write production-ready code with error handling using pcall
+- Add clear comments explaining each section
+- Output ONLY the JSON object, nothing else, no extra text`;
 
 export async function createCodeJob(
   userId: string, prompt: string,
