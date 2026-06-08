@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lychee AI — AI Coding Assistant for Roblox</title>
-<link rel="icon" href="./favicon.ico"/>
+<link rel="icon" href="/favicon.ico" type="image/x-icon"/>
+<link rel="icon" href="/lychee-ai-logo.png" type="image/png"/>
 <link rel="apple-touch-icon" href="./apple-touch-icon.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -545,13 +546,6 @@ tbody tr:hover td { background: rgba(255,255,255,0.02); color: var(--text); }
 </head>
 <body>
 
-<!-- ════════ LOADING SCREEN ════════ -->
-<div id="loadingScreen">
-  <div class="loading-logo"><img src="./lychee-ai-logo.png" alt="Lychee AI"/></div>
-  <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
-  <div class="loading-text">Loading Lychee AI...</div>
-</div>
-
 <!-- ════════ LANDING PAGE ════════ -->
 <div id="landingPage">
 
@@ -951,14 +945,15 @@ function doLogout() {
 
 async function initApp() {
   document.getElementById('landingPage').style.display = 'none';
-  document.getElementById('appPage').style.display = 'none';
-  // Show a simple loading state
   document.getElementById('appPage').classList.remove('hidden');
   document.getElementById('appPage').style.display = 'block';
-  document.getElementById('mainContent').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;">
-    <div style="width:48px;height:48px;border-radius:14px;overflow:hidden;animation:loading-bounce 1s ease-in-out infinite;"><img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/></div>
-    <div style="font-size:13px;color:var(--text-3);">Loading your workspace...</div>
-  </div>`;
+  document.getElementById('mainContent').innerHTML = `
+    <div id="appSpinner" style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;">
+      <div style="width:48px;height:48px;border-radius:14px;overflow:hidden;animation:loading-bounce 1s ease-in-out infinite;">
+        <img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/>
+      </div>
+      <div style="font-size:13px;color:var(--text-3);">Loading your workspace...</div>
+    </div>`;
   state.user = await api('GET', '/user/me');
   if (!state.user) { doLogout(); return; }
   const initials = (state.user.display_name || state.user.email || '?').slice(0, 2).toUpperCase();
@@ -1603,8 +1598,6 @@ function startTypewriter() { startPlaceholderCycle(); }
 
 // Everyone sees landing page first
 document.getElementById('landingPage').style.display = 'block';
-const ls = document.getElementById('loadingScreen');
-if (ls) ls.remove();
 initScrollAnimations();
 
 function handleStartScripting() {
