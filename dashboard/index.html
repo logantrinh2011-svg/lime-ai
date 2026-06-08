@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lime AI — Claude-powered Studio Assistant</title>
+<title>Lime AI — Gemini-powered Studio Assistant</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -201,7 +201,7 @@ pre { background: #060e07; border: 1px solid var(--border); border-radius: var(-
     <div class="auth-logo">
       <div class="auth-logo-mark">L</div>
       <div class="auth-title">Lime AI</div>
-      <div class="auth-sub">Claude-powered Roblox Studio assistant</div>
+      <div class="auth-sub">Gemini-powered Roblox Studio assistant</div>
     </div>
 
     <div id="loginForm">
@@ -247,7 +247,7 @@ pre { background: #060e07; border: 1px solid var(--border); border-radius: var(-
       <div class="logo-icon">L</div>
       <div>
         <div class="logo-text">Lime AI</div>
-        <div class="logo-sub">Powered by Claude</div>
+        <div class="logo-sub">Powered by Gemini</div>
       </div>
     </div>
 
@@ -255,7 +255,7 @@ pre { background: #060e07; border: 1px solid var(--border); border-radius: var(-
       <div class="nav-section">Main</div>
       <div class="nav-item active" onclick="navigate('dashboard')"><span class="nav-icon">⊞</span> Dashboard</div>
       <div class="nav-item" onclick="navigate('build')"><span class="nav-icon">◈</span> Build in Studio</div>
-      <div class="nav-item" onclick="navigate('chat')"><span class="nav-icon">◉</span> Chat with Claude</div>
+      <div class="nav-item" onclick="navigate('chat')"><span class="nav-icon">◉</span> Chat with Gemini</div>
       <div class="nav-item" onclick="navigate('usage')"><span class="nav-icon">◎</span> Usage</div>
       <div class="nav-item" onclick="navigate('history')"><span class="nav-icon">◷</span> History</div>
       <div class="nav-section">Account</div>
@@ -394,7 +394,7 @@ async function renderBuild() {
     <div class="build-wrap">
       <div class="page-header">
         <h1>Build in Studio</h1>
-        <p class="page-subtitle">Describe what you want — Claude codes it and it appears directly in your Studio</p>
+        <p class="page-subtitle">Describe what you want — Gemini codes it and it appears directly in your Studio</p>
       </div>
 
       <div class="studio-notice">
@@ -462,7 +462,7 @@ async function submitBuildJob() {
   if (!prompt) { toast('Enter a description of what to build', 'error'); return; }
 
   btn.disabled = true;
-  btn.textContent = 'Sending to Claude...';
+  btn.textContent = 'Sending to Gemini...';
   statusEl.textContent = '';
 
   const result = await api('POST', '/jobs', { prompt, scriptType, insertLocation });
@@ -477,7 +477,7 @@ async function submitBuildJob() {
   document.getElementById('buildPrompt').value = '';
   btn.disabled = false;
   btn.textContent = 'Generate & Send to Studio →';
-  toast('✓ Sent to Claude! Watch Studio for the code to appear.');
+  toast('✓ Sent to Gemini! Watch Studio for the code to appear.');
   loadJobs();
   pollJobStatus(result.jobId);
 }
@@ -511,7 +511,7 @@ async function loadJobs() {
   const result = await api('GET', '/jobs');
   if (!result?.jobs?.length) {
     el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-3);font-size:13px">
-      No builds yet. Describe what you want above and Claude will code it directly into Studio.
+      No builds yet. Describe what you want above and Gemini will code it directly into Studio.
     </div>`;
     return;
   }
@@ -570,15 +570,15 @@ async function renderChat() {
     <div class="chat-wrap">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div>
-          <h1 style="font-size:22px">Chat with Claude</h1>
-          <p class="page-subtitle">Powered by Claude — your Roblox AI assistant</p>
+          <h1 style="font-size:22px">Chat with Gemini</h1>
+          <p class="page-subtitle">Powered by Gemini — your Roblox AI assistant</p>
         </div>
         <button class="btn btn-ghost btn-sm" onclick="clearWebChat()">New conversation</button>
       </div>
       <div class="chat-messages" id="chatMessages">
         <div class="msg ai">
           <div class="msg-avatar ai">L</div>
-          <div class="msg-bubble">👋 Hi! I'm Lime AI, powered by Claude. Ask me anything about Roblox development — scripts, systems, bugs, game design, anything.</div>
+          <div class="msg-bubble">👋 Hi! I'm Lime AI, powered by Gemini. Ask me anything about Roblox development — scripts, systems, bugs, game design, anything.</div>
         </div>
       </div>
       <div class="chat-input-row">
@@ -814,7 +814,7 @@ async function renderUsage() {
 
 async function renderHistory() {
   document.getElementById('mainContent').innerHTML = `
-    <div class="page-header"><h1>Conversation History</h1><p class="page-subtitle">All your Claude sessions</p></div>
+    <div class="page-header"><h1>Conversation History</h1><p class="page-subtitle">All your Gemini sessions</p></div>
     <div id="histContent" class="card table-wrap"><div style="color:var(--text-3);font-size:13px">Loading...</div></div>`;
   const result = await api('GET', '/conversations?limit=100');
   const el = document.getElementById('histContent');
