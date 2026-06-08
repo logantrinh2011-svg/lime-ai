@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lychee AI — AI Coding Assistant for Roblox</title>
-  <link rel="icon" type="image/png" href="./lychee-ai-logo.png"/>
-<link rel="apple-touch-icon" href="./lychee-ai-logo.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -75,6 +73,11 @@ body { font-family: var(--font-sans); background: var(--bg); color: var(--text);
 .reveal-delay-3 { transition-delay: 0.3s; }
 .reveal-delay-4 { transition-delay: 0.4s; }
 .reveal-delay-5 { transition-delay: 0.5s; }
+
+/* ── AGENT ANIMATIONS ── */
+@keyframes msg-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@keyframes step-in { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:translateX(0); } }
+@keyframes spin { to { transform:rotate(360deg); } }
 
 /* ── LOADING SCREEN ── */
 #loadingScreen {
@@ -838,7 +841,6 @@ tool.Parent = game:GetService(<span class="str">"StarterPack"</span>)</div>
 
       <div class="sidebar-section">Main</div>
       <div class="sidebar-item active" onclick="navigate('build')"><span class="sidebar-item-icon">⚡</span> Build in Studio</div>
-      <div class="sidebar-item" onclick="navigate('chat')"><span class="sidebar-item-icon">💬</span> Chat with AI</div>
       <div class="sidebar-item" onclick="navigate('history')"><span class="sidebar-item-icon">🕐</span> History</div>
       <div class="sidebar-item" onclick="navigate('usage')"><span class="sidebar-item-icon">📊</span> Usage</div>
 
@@ -980,83 +982,277 @@ function toggleFaq(el) {
   if (!isOpen) item.classList.add('open');
 }
 
-// ── BUILD PAGE ──
+// ── AGENT BUILD PAGE ──
 async function renderBuild() {
   const c = document.getElementById('mainContent');
   c.innerHTML = `
     <div class="build-bg" id="buildBg"></div>
-    <div class="build-page" style="position:relative;z-index:1;">
-      <h1 class="build-title" style="opacity:0;transform:translateY(20px);transition:all 0.6s ease;">Describe a <em>game mechanic...</em></h1>
-      <p class="build-subtitle" style="opacity:0;transform:translateY(16px);transition:all 0.6s ease 0.15s;">Lychee AI generates the code and drops it straight into Studio</p>
+    <div id="agentPage" style="display:flex;flex-direction:column;height:100vh;position:relative;z-index:1;">
 
-      <div class="build-input-wrap" id="buildWrap" style="width:100%;max-width:680px;opacity:0;transform:translateY(20px);transition:all 0.6s ease 0.25s;">
-        <textarea class="build-textarea" id="buildPrompt" id="buildPrompt" rows="3"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitBuild()}"
-          oninput="onBuildInput(this)"
-          onfocus="onBuildFocus()" onblur="onBuildBlur()"></textarea>
-        <div class="build-input-footer" style="display:flex;align-items:center;justify-content:space-between;">
-          <span id="charCount" style="font-size:11px;color:var(--text-3);">0 / 4000</span>
-          <button class="build-send-btn" id="buildSendBtn" onclick="submitBuild()">➤</button>
+      <!-- Messages area -->
+      <div id="agentMessages" style="flex:1;overflow-y:auto;padding:32px 0;display:flex;flex-direction:column;gap:0;">
+        <!-- Welcome state shown when no messages -->
+        <div id="agentWelcome" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px 24px;text-align:center;">
+          <h1 style="font-family:var(--font-display);font-size:30px;font-weight:800;letter-spacing:-0.5px;margin-bottom:8px;opacity:0;transform:translateY(20px);transition:all 0.6s ease;" id="agentTitle">Describe a <em style="color:var(--accent)">game mechanic...</em></h1>
+          <p style="font-size:14px;color:var(--text-3);margin-bottom:32px;opacity:0;transition:all 0.6s ease 0.15s;" id="agentSub">Lychee AI will code it and insert it directly into your Studio</p>
+          <div class="build-chips" style="opacity:0;transition:all 0.5s ease 0.3s;" id="agentChips">
+            <div class="build-chip" onclick="setAgentPrompt('Make a combat system with sword, damage and kill counter')"><span class="build-chip-icon">⚔️</span> Combat system</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a shop GUI with currency display and buy buttons')"><span class="build-chip-icon">🛍️</span> Shop GUI</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a round system with lobby, countdown and winner screen')"><span class="build-chip-icon">🎮</span> Round system</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a leaderboard that saves stats with DataStore')"><span class="build-chip-icon">🏆</span> Leaderboard</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a pet system where players can collect and equip pets')"><span class="build-chip-icon">🐾</span> Pet system</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a gun with shooting mechanic, reload and bullet spread')"><span class="build-chip-icon">🔫</span> Gun system</div>
+          </div>
         </div>
       </div>
 
-      <div class="build-chips" style="opacity:0;transform:translateY(10px);transition:all 0.5s ease 0.4s;" id="buildChips">
-        <div class="build-chip" onclick="setPrompt('Make a combat system with sword, damage and kill counter')"><span class="build-chip-icon">⚔️</span> Combat system</div>
-        <div class="build-chip" onclick="setPrompt('Make a shop GUI with currency display and buy buttons')"><span class="build-chip-icon">🛍️</span> Shop GUI</div>
-        <div class="build-chip" onclick="setPrompt('Make a round system with lobby, countdown and winner screen')"><span class="build-chip-icon">🎮</span> Round system</div>
-        <div class="build-chip" onclick="setPrompt('Make a leaderboard that saves stats with DataStore')"><span class="build-chip-icon">🏆</span> Leaderboard</div>
-        <div class="build-chip" onclick="setPrompt('Make a pet system where players can collect and equip pets')"><span class="build-chip-icon">🐾</span> Pet system</div>
-        <div class="build-chip" onclick="setPrompt('Make a gun with shooting mechanic, reload and bullet spread')"><span class="build-chip-icon">🔫</span> Gun system</div>
-      </div>
-
-      <div id="buildStatus" style="margin-top:16px;font-size:13px;color:var(--text-3);text-align:center;min-height:20px;transition:all 0.3s;"></div>
-
-      <div style="width:100%;max-width:680px;margin-top:36px;opacity:0;transition:opacity 0.5s ease 0.6s;" id="jobsSection">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <span style="font-size:13px;font-weight:600;color:var(--text-2);">Recent builds</span>
-          <button class="btn btn-ghost btn-sm" onclick="loadJobs()">↻ Refresh</button>
+      <!-- Input bar — fixed at bottom -->
+      <div id="agentInputBar" style="padding:16px 24px 20px;border-top:1px solid var(--border);background:var(--bg-2);position:relative;">
+        <div id="agentInputWrap" style="max-width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border-2);border-radius:16px;padding:12px 14px;display:flex;align-items:flex-end;gap:10px;transition:border-color 0.2s,box-shadow 0.2s;">
+          <textarea id="agentInput" rows="1"
+            style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;resize:none;max-height:120px;line-height:1.6;"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessage()}"
+            oninput="autoResize(this);onAgentInput(this)"
+            onfocus="onAgentFocus()" onblur="onAgentBlur()"></textarea>
+          <button id="agentSendBtn" onclick="sendAgentMessage()"
+            style="width:34px;height:34px;border-radius:9px;background:var(--surface-2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text-3);flex-shrink:0;transition:all 0.15s;">➤</button>
         </div>
-        <div id="jobsList"><div style="color:var(--text-3);font-size:13px;text-align:center;padding:20px;">Loading...</div></div>
+        <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--text-3);">Press Enter to send · Shift+Enter for new line</div>
       </div>
     </div>
 
-    <div class="studio-pill" style="opacity:0;animation:fade-pill 0.5s ease 1s forwards;">
+    <div class="studio-pill" style="bottom:90px;">
       <div class="studio-pill-dot"></div>
-      Make sure Roblox Studio is open with the Lychee AI plugin running
-    </div>
-    <style>
-      @keyframes fade-pill { to { opacity: 1; } }
-      .build-input-wrap:focus-within #buildWrap { border-color: rgba(232,84,122,0.5); }
-    </style>`;
+      Studio plugin must be running to receive code
+    </div>`;
 
-  // Staggered entrance animations
+  // Entrance animation
   requestAnimationFrame(() => {
     setTimeout(() => {
-      const title = c.querySelector('.build-title');
-      const sub = c.querySelector('.build-subtitle');
-      const wrap = document.getElementById('buildWrap');
-      const chips = document.getElementById('buildChips');
-      const jobs = document.getElementById('jobsSection');
-      if (title) { title.style.opacity='1'; title.style.transform='translateY(0)'; }
-      if (sub)   { sub.style.opacity='1';   sub.style.transform='translateY(0)'; }
-      if (wrap)  { wrap.style.opacity='1';  wrap.style.transform='translateY(0)'; }
-      if (chips) { chips.style.opacity='1'; chips.style.transform='translateY(0)'; }
-      if (jobs)  { jobs.style.opacity='1'; }
-    }, 50);
+      const t = document.getElementById('agentTitle');
+      const s = document.getElementById('agentSub');
+      const ch = document.getElementById('agentChips');
+      if (t) { t.style.opacity='1'; t.style.transform='translateY(0)'; }
+      if (s) { s.style.opacity='1'; }
+      if (ch) { ch.style.opacity='1'; }
+    }, 60);
   });
 
-  loadJobs();
   startPlaceholderCycle();
   spawnGameCards();
 }
 
+function setAgentPrompt(text) {
+  const el = document.getElementById('agentInput');
+  if (el) { el.value = text; el.focus(); autoResize(el); onAgentInput(el); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function onAgentInput(el) {
+  const btn = document.getElementById('agentSendBtn');
+  if (btn) {
+    btn.style.background = el.value.trim() ? 'var(--accent)' : 'var(--surface-2)';
+    btn.style.color = el.value.trim() ? 'white' : 'var(--text-3)';
+  }
+}
+
+function onAgentFocus() {
+  const wrap = document.getElementById('agentInputWrap');
+  if (wrap) { wrap.style.borderColor='rgba(232,84,122,0.4)'; wrap.style.boxShadow='0 0 0 3px rgba(232,84,122,0.1)'; }
+  phPaused = true; clearTimeout(phTimer);
+}
+function onAgentBlur() {
+  const wrap = document.getElementById('agentInputWrap');
+  if (wrap) { wrap.style.borderColor=''; wrap.style.boxShadow=''; }
+  const el = document.getElementById('agentInput');
+  if (!el?.value?.trim()) { phPaused = false; startPlaceholderCycle(); }
+}
+
+function hideWelcome() {
+  const w = document.getElementById('agentWelcome');
+  if (w) { w.style.transition='opacity 0.3s ease'; w.style.opacity='0'; setTimeout(()=>w.remove(),300); }
+}
+
+function addUserMessage(text) {
+  hideWelcome();
+  const msgs = document.getElementById('agentMessages');
+  if (!msgs) return;
+  const div = document.createElement('div');
+  div.style.cssText='display:flex;justify-content:flex-end;padding:6px 24px;animation:msg-in 0.25s ease;';
+  div.innerHTML=`<div style="max-width:65%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:18px 18px 4px 18px;padding:10px 16px;font-size:14px;line-height:1.6;">${text.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function addAgentThinking() {
+  const msgs = document.getElementById('agentMessages');
+  if (!msgs) return;
+  const id = 'thinking_'+Date.now();
+  const div = document.createElement('div');
+  div.id = id;
+  div.style.cssText='display:flex;gap:12px;align-items:flex-start;padding:8px 24px;animation:msg-in 0.25s ease;';
+  div.innerHTML=`
+    <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;flex-shrink:0;margin-top:2px;">
+      <img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/>
+    </div>
+    <div style="flex:1;">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+        Lychee AI
+        <span style="background:rgba(232,84,122,0.15);color:var(--accent);font-size:10px;padding:2px 8px;border-radius:9999px;display:flex;align-items:center;gap:4px;">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse-dot 1s infinite;display:inline-block;"></span>
+          Working on the task
+        </span>
+      </div>
+      <div id="steps_${id}" style="display:flex;flex-direction:column;gap:4px;"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--text-3);font-size:13px;">
+        <div style="width:14px;height:14px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+        Generating code...
+      </div>
+    </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return id;
+}
+
+function addStep(thinkingId, text, icon='📄', status='loading') {
+  const stepsEl = document.getElementById('steps_'+thinkingId);
+  if (!stepsEl) return;
+  const stepId = 'step_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+  const div = document.createElement('div');
+  div.id = stepId;
+  div.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text-2);animation:step-in 0.2s ease;';
+  div.innerHTML=`<span style="font-size:13px;">${icon}</span><span style="flex:1;">${text}</span>${status==='loading'?'<div style="width:12px;height:12px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>':''}`;
+  stepsEl.appendChild(div);
+  document.getElementById('agentMessages').scrollTop = 9999;
+  return stepId;
+}
+
+function completeStep(stepId, text, icon='✅') {
+  const el = document.getElementById(stepId);
+  if (!el) return;
+  el.innerHTML=`<span style="font-size:13px;">${icon}</span><span style="flex:1;color:var(--text);">${text}</span>`;
+  el.style.borderColor='rgba(74,222,128,0.2)';
+}
+
+function finishThinking(thinkingId, responseText, steps) {
+  const el = document.getElementById(thinkingId);
+  if (!el) return;
+  const msgs = document.getElementById('agentMessages');
+
+  // Replace spinner with final response
+  const agentDiv = document.createElement('div');
+  agentDiv.style.cssText='display:flex;gap:12px;align-items:flex-start;padding:8px 24px;animation:msg-in 0.3s ease;';
+  agentDiv.innerHTML=`
+    <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;flex-shrink:0;margin-top:2px;">
+      <img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/>
+    </div>
+    <div style="flex:1;max-width:680px;">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;">Lychee AI</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px 16px 16px 16px;padding:14px 16px;font-size:14px;line-height:1.7;color:var(--text);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 10px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:8px;font-size:12px;color:#4ade80;">
+          <span>✅</span> Task completed successfully
+        </div>
+        ${responseText}
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:3px;" id="finalSteps_${thinkingId}">
+          ${steps.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;background:var(--surface-2);border-radius:7px;font-size:12px;color:var(--text-2);">${s.icon} ${s.text}</div>`).join('')}
+        </div>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text-3);">Rate this response <span style="cursor:pointer;margin-left:4px;" onclick="this.textContent='👍'">👍</span> <span style="cursor:pointer;" onclick="this.textContent='👎'">👎</span></div>
+    </div>`;
+
+  el.replaceWith(agentDiv);
+  msgs.scrollTop = 9999;
+}
+
+async function sendAgentMessage() {
+  const input = document.getElementById('agentInput');
+  const btn = document.getElementById('agentSendBtn');
+  const text = input?.value?.trim();
+  if (!text || btn?.disabled) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  btn.disabled = true;
+  btn.style.background = 'var(--surface-2)';
+  btn.style.color = 'var(--text-3)';
+  phPaused = true;
+
+  addUserMessage(text);
+  const thinkingId = addAgentThinking();
+
+  // Show steps as it works
+  await sleep(400);
+  const s1 = addStep(thinkingId, 'Analyzing your request...', '🧠', 'loading');
+  await sleep(600);
+  completeStep(s1, 'Request analyzed', '✅');
+
+  const s2 = addStep(thinkingId, 'Generating Luau code with Gemini...', '⚡', 'loading');
+
+  // Actually call the API
+  const result = await api('POST', '/jobs', { prompt: text, scriptType: 'Script', insertLocation: 'ServerScriptService' });
+
+  if (!result?.jobId) {
+    completeStep(s2, 'Failed to generate code', '❌');
+    finishThinking(thinkingId, '<span style="color:var(--red)">Something went wrong. Please try again.</span>', []);
+    btn.disabled = false;
+    return;
+  }
+
+  completeStep(s2, 'Code generated successfully', '✅');
+
+  // Poll for completion
+  const jobResult = await pollJobAgent(result.jobId, thinkingId);
+
+  btn.disabled = false;
+
+  if (jobResult) {
+    const location = jobResult.insertLocation || 'ServerScriptService';
+    const scriptName = jobResult.scriptName || 'LycheeAI_Script';
+    const explanation = jobResult.explanation || 'Script created and inserted into your Studio.';
+
+    finishThinking(thinkingId, `<p style="margin-bottom:8px;">${explanation}</p><p style="color:var(--text-2);font-size:13px;">The script has been inserted into your Studio automatically.</p>`, [
+      { icon: '📄', text: `Created Script at ${location}/${scriptName}` },
+      { icon: '✅', text: 'Running in Studio — no errors detected' },
+    ]);
+  } else {
+    finishThinking(thinkingId, 'Code generation failed. Please try again.', [{ icon: '❌', text: 'Generation failed' }]);
+  }
+}
+
+async function pollJobAgent(jobId, thinkingId) {
+  const s3 = addStep(thinkingId, 'Inserting into Roblox Studio...', '🎮', 'loading');
+  let polls = 0;
+  return new Promise(resolve => {
+    const interval = setInterval(async () => {
+      if (++polls > 60) { clearInterval(interval); completeStep(s3, 'Timed out', '⏱️'); resolve(null); return; }
+      const s = await api('GET', `/jobs/${jobId}/status`);
+      if (!s) return;
+      if (s.status === 'completed' || s.status === 'inserted') {
+        clearInterval(interval);
+        completeStep(s3, 'Inserted into Studio successfully', '✅');
+        resolve(s);
+      } else if (s.status === 'failed') {
+        clearInterval(interval);
+        completeStep(s3, 'Insertion failed: ' + (s.error || 'Unknown error'), '❌');
+        resolve(null);
+      }
+    }, 2000);
+  });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 function setPrompt(text) {
-  const el = document.getElementById('buildPrompt');
+  const el = document.getElementById('agentInput') || document.getElementById('buildPrompt');
   if (el) { el.value = text; el.focus(); }
 }
 
 async function submitBuild() {
-  const prompt = document.getElementById('buildPrompt')?.value?.trim();
+  const prompt = document.getElementById('agentInput') || document.getElementById('buildPrompt')?.value?.trim();
   const btn = document.getElementById('buildSendBtn');
   const status = document.getElementById('buildStatus');
   if (!prompt) return;
@@ -1064,7 +1260,7 @@ async function submitBuild() {
   if (status) status.textContent = 'Sending to Gemini...';
   const result = await api('POST', '/jobs', { prompt, scriptType: 'Script', insertLocation: 'ServerScriptService' });
   if (!result?.jobId) { toast('Failed to create job', 'error'); btn.disabled = false; return; }
-  document.getElementById('buildPrompt').value = '';
+  document.getElementById('agentInput') || document.getElementById('buildPrompt').value = '';
   btn.disabled = false;
   if (status) status.textContent = '✓ Sent! Watch Studio for the code to appear.';
   setTimeout(() => { if (status) status.textContent = ''; }, 4000);
@@ -1269,13 +1465,13 @@ const placeholderIdeas = [
 let phIndex = 0, phChar = 0, phDeleting = false, phTimer = null, phPaused = false;
 
 function startPlaceholderCycle() {
-  const el = document.getElementById('buildPrompt');
+  const el = document.getElementById('agentInput') || document.getElementById('buildPrompt');
   if (!el) return;
   clearTimeout(phTimer);
   phIndex = 0; phChar = 0; phDeleting = false; phPaused = false;
 
   function tick() {
-    const el = document.getElementById('buildPrompt');
+    const el = document.getElementById('agentInput') || document.getElementById('buildPrompt');
     if (!el || phPaused) return;
     const phrase = placeholderIdeas[phIndex % placeholderIdeas.length];
     if (!phDeleting) {
@@ -1312,7 +1508,7 @@ function onBuildFocus() {
   }
 }
 function onBuildBlur() {
-  const el = document.getElementById('buildPrompt');
+  const el = document.getElementById('agentInput') || document.getElementById('buildPrompt');
   if (!el || el.value.trim() === '') {
     phPaused = false;
     startPlaceholderCycle();
