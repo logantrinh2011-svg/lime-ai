@@ -76,7 +76,6 @@ body { font-family: var(--font-sans); background: var(--bg); color: var(--text);
 
 /* ── LANDING PAGE ── */
 #landingPage { display: block; }
-#appPage { background: var(--bg); }
 
 /* NAV */
 .nav {
@@ -870,10 +869,14 @@ function doLogout() {
 }
 
 async function initApp() {
+  // Keep landing hidden, show nothing until user loads
   document.getElementById('landingPage').style.display = 'none';
-  document.getElementById('appPage').classList.remove('hidden');
+  document.getElementById('appPage').style.display = 'none';
   state.user = await api('GET', '/user/me');
   if (!state.user) { doLogout(); return; }
+  // Only show app once we have the user
+  document.getElementById('appPage').style.display = 'block';
+  document.getElementById('appPage').classList.remove('hidden');
   const initials = (state.user.display_name || state.user.email || '?').slice(0, 2).toUpperCase();
   document.getElementById('sidebarAvatar').textContent = initials;
   document.getElementById('sidebarEmail').textContent = state.user.email;
@@ -1130,10 +1133,12 @@ function toast(msg, type='success') {
 }
 
 if (state.accessToken) {
+  // Hide everything while we check the token
   document.getElementById('landingPage').style.display = 'none';
-  document.getElementById('appPage').classList.remove('hidden');
   initApp();
 } else {
+  // No token - show landing page
+  document.getElementById('landingPage').style.display = 'block';
   initScrollAnimations();
 }
 
