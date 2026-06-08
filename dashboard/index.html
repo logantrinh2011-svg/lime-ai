@@ -382,44 +382,43 @@ tool.Parent = game:GetService(<span class="str">"StarterPack"</span>)</div>
 
 <!-- ════════ APP ════════ -->
 <div id="appPage" class="hidden">
-  <div class="app">
-    <aside class="sidebar">
-      <div class="sidebar-logo">
-        <div class="sidebar-logo-img"><img src="./lychee-ai-logo.png" alt=""/></div>
-        <div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span class="sidebar-logo-text">Lychee AI</span>
-            <span class="sidebar-logo-beta">beta</span>
-          </div>
-        </div>
+  <!-- Profile dropdown menu -->
+  <div id="profileMenu" style="display:none;position:fixed;top:52px;right:16px;z-index:2000;background:var(--bg-2);border:1px solid var(--border-2);border-radius:14px;padding:8px;min-width:200px;box-shadow:0 16px 48px rgba(0,0,0,0.5);animation:msg-in 0.15s ease;">
+    <div id="profileMenuName" style="padding:8px 10px 10px;font-size:13px;font-weight:600;color:var(--text-2);border-bottom:1px solid var(--border);margin-bottom:6px;"></div>
+    <div onclick="navigate('usage')" class="pmenu-item">📊 Usage</div>
+    <div onclick="navigate('billing')" class="pmenu-item">💎 Billing</div>
+    <div onclick="navigate('settings')" class="pmenu-item">⚙️ Manage Account</div>
+    <div style="height:1px;background:var(--border);margin:6px 0;"></div>
+    <div onclick="doLogout()" class="pmenu-item" style="color:var(--red);">→ Log Out</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;height:100vh;">
+    <!-- Top bar -->
+    <div style="height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--bg-2);border-bottom:1px solid var(--border);z-index:100;">
+      <!-- Left: logo + project name -->
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:26px;height:26px;border-radius:7px;overflow:hidden;"><img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/></div>
+        <span style="font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--text);">Lychee AI</span>
+        <span style="font-size:10px;font-weight:700;background:rgba(232,84,122,0.15);color:var(--accent);padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:0.05em;">beta</span>
+        <span id="topProjectName" style="font-size:13px;color:var(--text-3);margin-left:4px;"></span>
       </div>
-      <div style="padding:0 10px 8px;">
-        <div class="sidebar-new" onclick="navigate('build')"><span style="font-size:16px;">+</span> New Build</div>
+      <!-- Right: avatar -->
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div id="topAvatar" onclick="toggleProfileMenu()" style="width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:white;cursor:pointer;transition:opacity 0.15s;user-select:none;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">?</div>
       </div>
-      <div class="sidebar-section">Main</div>
-      <div class="sidebar-item active" onclick="navigate('build')"><span class="sidebar-item-icon">⚡</span> Build in Studio</div>
-      <div class="sidebar-item" onclick="navigate('history')"><span class="sidebar-item-icon">🕐</span> History</div>
-      <div class="sidebar-item" onclick="navigate('usage')"><span class="sidebar-item-icon">📊</span> Usage</div>
-      <div class="sidebar-section">Account</div>
-      <div class="sidebar-item" onclick="navigate('billing')"><span class="sidebar-item-icon">💎</span> Billing</div>
-      <div class="sidebar-item" onclick="navigate('settings')"><span class="sidebar-item-icon">⚙️</span> Settings</div>
-      <div id="adminNav" class="hidden">
-        <div class="sidebar-section">Admin</div>
-        <div class="sidebar-item" onclick="navigate('admin')"><span class="sidebar-item-icon">🛡️</span> Admin Panel</div>
-      </div>
-      <div class="sidebar-footer">
-        <div class="sidebar-user" onclick="navigate('settings')">
-          <div class="sidebar-avatar" id="sidebarAvatar">?</div>
-          <div style="flex:1;min-width:0;">
-            <div class="sidebar-user-email" id="sidebarEmail">Loading...</div>
-            <div class="sidebar-user-plan" id="sidebarPlan">FREE</div>
-          </div>
-        </div>
-      </div>
-    </aside>
-    <main class="app-main" id="mainContent"></main>
+    </div>
+
+    <!-- Main content -->
+    <div style="flex:1;display:flex;overflow:hidden;">
+      <main id="mainContent" style="flex:1;overflow:hidden;"></main>
+    </div>
   </div>
 </div>
+
+<style>
+.pmenu-item{padding:8px 10px;border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer;transition:background 0.12s;}
+.pmenu-item:hover{background:var(--surface);color:var(--text);}
+</style>
 
 <script>
 const API = 'https://lime-ai-tmy2.onrender.com/api/v1';
@@ -508,7 +507,7 @@ function doLogout() {
 async function initApp() {
   document.getElementById('appPage').classList.remove('hidden');
   document.getElementById('mainContent').innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;">
+    <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:16px;">
       <div style="width:48px;height:48px;border-radius:14px;overflow:hidden;animation:bounce-logo 1s ease-in-out infinite;">
         <img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/>
       </div>
@@ -517,19 +516,36 @@ async function initApp() {
   state.user = await api('GET', '/user/me');
   if (!state.user) { doLogout(); return; }
   const initials = (state.user.display_name || state.user.email || '?').slice(0, 2).toUpperCase();
-  document.getElementById('sidebarAvatar').textContent = initials;
-  document.getElementById('sidebarEmail').textContent = state.user.email;
-  document.getElementById('sidebarPlan').textContent = (state.user.plan_name || 'free').toUpperCase();
-  if (state.user.is_admin) document.getElementById('adminNav').classList.remove('hidden');
+  const avatar = document.getElementById('topAvatar');
+  if (avatar) avatar.textContent = initials;
+  const nameEl = document.getElementById('profileMenuName');
+  if (nameEl) nameEl.textContent = state.user.email;
   navigate('build');
 }
 
+function toggleProfileMenu() {
+  const menu = document.getElementById('profileMenu');
+  if (!menu) return;
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('profileMenu');
+  const avatar = document.getElementById('topAvatar');
+  if (menu && menu.style.display !== 'none' && !menu.contains(e.target) && e.target !== avatar) {
+    menu.style.display = 'none';
+  }
+});
+
 function navigate(page) {
   state.currentPage = page;
-  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
-  document.querySelector(`.sidebar-item[onclick="navigate('${page}')"]`)?.classList.add('active');
+  // Close profile menu
+  const menu = document.getElementById('profileMenu');
+  if (menu) menu.style.display = 'none';
   const pages = { build: renderBuild, usage: renderUsage, history: renderHistory, billing: renderBilling, settings: renderSettings, admin: renderAdmin };
   pages[page]?.();
+  // Update top project name
+  const pn = document.getElementById('topProjectName');
+  if (pn) pn.textContent = page !== 'build' ? '/ ' + page.charAt(0).toUpperCase() + page.slice(1) : '';
 }
 
 function toggleFaq(el) {
@@ -585,32 +601,20 @@ async function renderBuild() {
       </div>
 
       <!-- Main chat area -->
-      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;">
 
-        <!-- Messages -->
-        <div id="agentMessages" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;position:relative;">
-
-          <!-- Welcome — centered, animates out when first message sent -->
-          <div id="agentWelcome" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;transition:opacity 0.4s ease,transform 0.4s ease;">
-            <h1 id="agentTitle" style="font-family:var(--font-display);font-size:28px;font-weight:800;letter-spacing:-0.5px;margin-bottom:8px;opacity:0;transform:translateY(16px);transition:all 0.5s ease;">Describe a <em style="color:var(--accent)">game mechanic...</em></h1>
-            <p id="agentSub" style="font-size:14px;color:var(--text-3);margin-bottom:28px;opacity:0;transition:all 0.5s ease 0.15s;">Lychee AI will code it and insert it directly into your Studio</p>
-            <div class="build-chips" id="agentChips" style="opacity:0;transition:all 0.4s ease 0.28s;">
-              <div class="build-chip" onclick="setAgentPrompt('Make a combat system with sword, damage and kill counter')"><span class="build-chip-icon">⚔️</span> Combat system</div>
-              <div class="build-chip" onclick="setAgentPrompt('Make a shop GUI with currency display and buy buttons')"><span class="build-chip-icon">🛍️</span> Shop GUI</div>
-              <div class="build-chip" onclick="setAgentPrompt('Make a round system with lobby, countdown and winner screen')"><span class="build-chip-icon">🎮</span> Round system</div>
-              <div class="build-chip" onclick="setAgentPrompt('Make a leaderboard that saves stats with DataStore')"><span class="build-chip-icon">🏆</span> Leaderboard</div>
-              <div class="build-chip" onclick="setAgentPrompt('Make a pet system where players can collect and equip pets')"><span class="build-chip-icon">🐾</span> Pet system</div>
-              <div class="build-chip" onclick="setAgentPrompt('Make a gun with shooting, reload and bullet spread')"><span class="build-chip-icon">🔫</span> Gun system</div>
-            </div>
-          </div>
-
-          <!-- Messages rendered here -->
-          <div id="msgList" style="padding:16px 20px;display:flex;flex-direction:column;gap:8px;min-height:100%;"></div>
+        <!-- Messages (hidden until first message) -->
+        <div id="agentMessages" style="flex:1;overflow-y:auto;display:none;flex-direction:column;">
+          <div id="msgList" style="padding:16px 20px;display:flex;flex-direction:column;gap:8px;"></div>
         </div>
 
-        <!-- Input bar — starts centered, moves to bottom after first message -->
-        <div id="agentInputBar" style="padding:16px 20px 18px;border-top:1px solid transparent;background:transparent;transition:all 0.4s ease;">
-          <div id="agentInputWrap" style="max-width:700px;margin:0 auto;background:var(--surface);border:1px solid var(--border-2);border-radius:16px;padding:12px 14px;display:flex;align-items:flex-end;gap:10px;transition:all 0.3s ease;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+        <!-- Welcome screen — full area with input in middle -->
+        <div id="agentWelcome" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;">
+          <h1 id="agentTitle" style="font-family:var(--font-display);font-size:28px;font-weight:800;letter-spacing:-0.5px;margin-bottom:6px;opacity:0;transform:translateY(16px);transition:all 0.5s ease;">Describe a <em style="color:var(--accent)">game mechanic...</em></h1>
+          <p id="agentSub" style="font-size:14px;color:var(--text-3);margin-bottom:20px;opacity:0;transition:all 0.5s ease 0.15s;">Lychee AI will code it and insert it directly into your Studio</p>
+
+          <!-- Input box in the MIDDLE on welcome screen -->
+          <div id="agentInputWrapCenter" style="width:100%;max-width:680px;background:var(--surface);border:1px solid var(--border-2);border-radius:16px;padding:12px 14px;display:flex;align-items:flex-end;gap:10px;box-shadow:0 8px 40px rgba(0,0,0,0.4);opacity:0;transition:all 0.5s ease 0.25s;margin-bottom:16px;">
             <textarea id="agentInput" rows="1"
               style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;resize:none;max-height:140px;line-height:1.6;"
               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessage()}"
@@ -619,15 +623,41 @@ async function renderBuild() {
             <button id="agentSendBtn" onclick="sendAgentMessage()"
               style="width:36px;height:36px;border-radius:10px;background:var(--surface-2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text-3);flex-shrink:0;transition:all 0.2s;">➤</button>
           </div>
-          <div style="text-align:center;margin-top:7px;font-size:11px;color:var(--text-3);">Enter to send · Shift+Enter for new line</div>
+
+          <!-- Studio pill below input on welcome -->
+          <div style="display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text-3);margin-bottom:20px;opacity:0;transition:all 0.4s ease 0.35s;" id="studioPillInline">
+            <div style="width:6px;height:6px;border-radius:50%;background:#4ade80;animation:pulse-dot 1.5s infinite;"></div>
+            Studio plugin must be running to receive code
+          </div>
+
+          <div class="build-chips" id="agentChips" style="opacity:0;transition:all 0.4s ease 0.35s;">
+            <div class="build-chip" onclick="setAgentPrompt('Make a combat system with sword, damage and kill counter')"><span class="build-chip-icon">⚔️</span> Combat system</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a shop GUI with currency display and buy buttons')"><span class="build-chip-icon">🛍️</span> Shop GUI</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a round system with lobby, countdown and winner screen')"><span class="build-chip-icon">🎮</span> Round system</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a leaderboard that saves stats with DataStore')"><span class="build-chip-icon">🏆</span> Leaderboard</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a pet system where players can collect and equip pets')"><span class="build-chip-icon">🐾</span> Pet system</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a gun with shooting, reload and bullet spread')"><span class="build-chip-icon">🔫</span> Gun system</div>
+          </div>
+        </div>
+
+        <!-- Docked input bar (shown AFTER first message) -->
+        <div id="agentInputBar" style="display:none;padding:12px 20px 14px;border-top:1px solid var(--border);background:rgba(28,28,28,0.95);backdrop-filter:blur(10px);">
+          <div id="agentInputWrapDocked" style="max-width:700px;margin:0 auto;background:var(--surface);border:1px solid var(--border-2);border-radius:14px;padding:11px 13px;display:flex;align-items:flex-end;gap:10px;transition:all 0.2s ease;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+            <textarea id="agentInputDocked" rows="1"
+              style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;resize:none;max-height:140px;line-height:1.6;"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessageDocked()}"
+              oninput="autoResize(this);onDockedInput(this)"
+              onfocus="onDockedFocus()" onblur="onDockedBlur()"></textarea>
+            <button id="agentSendBtnDocked" onclick="sendAgentMessageDocked()"
+              style="width:34px;height:34px;border-radius:9px;background:var(--surface-2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text-3);flex-shrink:0;transition:all 0.2s;">➤</button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:7px;font-size:11px;color:var(--text-3);">
+            <div style="width:5px;height:5px;border-radius:50%;background:#4ade80;animation:pulse-dot 1.5s infinite;"></div>
+            Studio plugin must be running · Enter to send
+          </div>
         </div>
 
       </div>
-    </div>
-
-    <div class="studio-pill" style="bottom:76px;left:calc(50% + 100px);transform:translateX(-50%);">
-      <div class="studio-pill-dot"></div>
-      Studio plugin must be running
     </div>`;
 
   // Entrance animation
@@ -635,10 +665,14 @@ async function renderBuild() {
     setTimeout(() => {
       const t = document.getElementById('agentTitle');
       const s = document.getElementById('agentSub');
+      const w = document.getElementById('agentInputWrapCenter');
       const ch = document.getElementById('agentChips');
+      const sp = document.getElementById('studioPillInline');
       if (t) { t.style.opacity='1'; t.style.transform='none'; }
       if (s) { s.style.opacity='1'; }
+      if (w) { w.style.opacity='1'; }
       if (ch) { ch.style.opacity='1'; }
+      if (sp) { sp.style.opacity='1'; }
     }, 80);
   });
 
@@ -671,11 +705,9 @@ function renderProjectsList() {
     <div onclick="switchProject('${p.id}')" style="display:flex;align-items:center;gap:6px;padding:8px 9px;border-radius:8px;cursor:pointer;margin-bottom:2px;background:${currentProjectId===p.id?'rgba(232,84,122,0.1)':'transparent'};border:1px solid ${currentProjectId===p.id?'rgba(232,84,122,0.25)':'transparent'};transition:all 0.15s;"
       onmouseover="if('${p.id}'!==currentProjectId)this.style.background='rgba(255,255,255,0.04)'"
       onmouseout="if('${p.id}'!==currentProjectId)this.style.background='transparent'">
-      <span style="font-size:13px;">🎮</span>
       <span style="flex:1;font-size:12px;font-weight:500;color:${currentProjectId===p.id?'var(--accent)':'var(--text-2)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</span>
-      <span onclick="event.stopPropagation();deleteProject('${p.id}')" style="font-size:11px;color:var(--text-3);padding:2px 4px;border-radius:4px;opacity:0;transition:opacity 0.15s;" class="proj-del">✕</span>
+      <span onclick="event.stopPropagation();deleteProject('${p.id}')" style="font-size:11px;color:var(--text-3);padding:2px 5px;border-radius:4px;opacity:0;transition:opacity 0.15s;cursor:pointer;" class="proj-del">✕</span>
     </div>`).join('');
-  // Show delete on hover
   el.querySelectorAll('[onclick*="switchProject"]').forEach(row => {
     const del = row.querySelector('.proj-del');
     row.addEventListener('mouseenter', () => { if(del) del.style.opacity='1'; });
@@ -712,16 +744,27 @@ function onAgentInput(el) {
 }
 
 function onAgentFocus() {
-  const wrap = document.getElementById('agentInputWrap');
-  if (wrap) { wrap.style.borderColor='rgba(232,84,122,0.45)'; wrap.style.boxShadow='0 0 0 3px rgba(232,84,122,0.1),0 8px 32px rgba(0,0,0,0.3)'; }
+  const wrap = document.getElementById('agentInputWrapCenter');
+  if (wrap) { wrap.style.borderColor='rgba(232,84,122,0.45)'; wrap.style.boxShadow='0 0 0 3px rgba(232,84,122,0.1),0 8px 40px rgba(0,0,0,0.4)'; }
   phPaused = true; clearTimeout(phTimer);
 }
-
 function onAgentBlur() {
-  const wrap = document.getElementById('agentInputWrap');
-  if (wrap) { wrap.style.borderColor='var(--border-2)'; wrap.style.boxShadow='0 8px 32px rgba(0,0,0,0.3)'; }
+  const wrap = document.getElementById('agentInputWrapCenter');
+  if (wrap) { wrap.style.borderColor='var(--border-2)'; wrap.style.boxShadow='0 8px 40px rgba(0,0,0,0.4)'; }
   const el = document.getElementById('agentInput');
   if (!el?.value?.trim()) { phPaused = false; startPlaceholderCycle(); }
+}
+function onDockedFocus() {
+  const wrap = document.getElementById('agentInputWrapDocked');
+  if (wrap) { wrap.style.borderColor='rgba(232,84,122,0.45)'; wrap.style.boxShadow='0 0 0 3px rgba(232,84,122,0.1)'; }
+}
+function onDockedBlur() {
+  const wrap = document.getElementById('agentInputWrapDocked');
+  if (wrap) { wrap.style.borderColor='var(--border-2)'; wrap.style.boxShadow='none'; }
+}
+function onDockedInput(el) {
+  const btn = document.getElementById('agentSendBtnDocked');
+  if (btn) { btn.style.background = el.value.trim() ? 'var(--accent)' : 'var(--surface-2)'; btn.style.color = el.value.trim() ? 'white' : 'var(--text-3)'; }
 }
 
 let welcomeHidden = false;
@@ -729,25 +772,23 @@ function hideWelcome(instant) {
   if (welcomeHidden) return;
   welcomeHidden = true;
   const w = document.getElementById('agentWelcome');
+  const msgs = document.getElementById('agentMessages');
   const bar = document.getElementById('agentInputBar');
   if (!w) return;
   if (instant) {
     w.remove();
-    if (bar) { bar.style.borderTopColor='var(--border)'; bar.style.background='rgba(28,28,28,0.95)'; bar.style.backdropFilter='blur(10px)'; }
+    if (msgs) { msgs.style.display='flex'; }
+    if (bar) { bar.style.display='block'; }
     return;
   }
-  // Animate welcome out, input bar stays at bottom
+  w.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
   w.style.opacity = '0';
-  w.style.transform = 'translateY(-20px)';
-  setTimeout(() => { if(w.parentNode) w.remove(); }, 400);
-  // Animate input bar to docked bottom
-  if (bar) {
-    setTimeout(() => {
-      bar.style.borderTopColor = 'var(--border)';
-      bar.style.background = 'rgba(28,28,28,0.95)';
-      bar.style.backdropFilter = 'blur(10px)';
-    }, 200);
-  }
+  w.style.transform = 'translateY(-16px)';
+  setTimeout(() => {
+    if (w.parentNode) w.remove();
+    if (msgs) { msgs.style.display='flex'; }
+    if (bar) { bar.style.display='block'; setTimeout(() => { const di = document.getElementById('agentInputDocked'); if(di) di.focus(); }, 50); }
+  }, 350);
 }
 
 function renderUserMessage(text) {
@@ -846,71 +887,63 @@ function replaceThinkingWithResponse(thinkingId, responseText, steps) {
   }, 200);
 }
 
-async function sendAgentMessage() {
-  const input = document.getElementById('agentInput');
-  const btn = document.getElementById('agentSendBtn');
-  const text = input?.value?.trim();
-  if (!text || btn?.disabled) return;
-
-  // If no current project, create one
+// Shared send logic
+async function sendAgentCore(text, inputEl, btnEl) {
+  if (!text || btnEl?.disabled) return;
   if (!currentProjectId) {
     const proj = createProject(text.slice(0, 32) + (text.length > 32 ? '...' : ''));
     currentProjectId = proj.id;
     renderProjectsList();
   }
-
-  input.value = ''; input.style.height = 'auto';
-  btn.disabled = true; btn.style.background = 'var(--surface-2)'; btn.style.color = 'var(--text-3)';
+  if (inputEl) { inputEl.value = ''; inputEl.style.height = 'auto'; }
+  if (btnEl) { btnEl.disabled = true; btnEl.style.background = 'var(--surface-2)'; btnEl.style.color = 'var(--text-3)'; }
   phPaused = true;
-
-  // Hide welcome & dock input
   hideWelcome(false);
   welcomeHidden = true;
-
-  // Save user message
   const proj = getProject(currentProjectId);
   if (proj) { proj.messages.push({ role: 'user', text }); saveProjects(); }
-
   renderUserMessage(text);
   const thinkingId = addThinkingBubble();
-
   await sleep(300);
   const s1 = addThinkingStep(thinkingId, 'Analyzing your request...', '🧠');
   await sleep(500);
   completeThinkingStep(s1, 'Request analyzed', '✅');
-
   const s2 = addThinkingStep(thinkingId, 'Generating Luau code with Gemini...', '⚡');
   const result = await api('POST', '/jobs', { prompt: text, scriptType: 'Script', insertLocation: 'ServerScriptService' });
-
   if (!result?.jobId) {
     completeThinkingStep(s2, 'Failed to generate', '❌');
     replaceThinkingWithResponse(thinkingId, '<span style="color:var(--red)">Something went wrong. Please try again.</span>', []);
-    btn.disabled = false; return;
+    if (btnEl) btnEl.disabled = false; return;
   }
-
   completeThinkingStep(s2, 'Code generated', '✅');
   const s3 = addThinkingStep(thinkingId, 'Inserting into Roblox Studio...', '🎮');
-
   const jobResult = await pollForJob(result.jobId);
-  btn.disabled = false;
-
+  if (btnEl) btnEl.disabled = false;
   if (jobResult) {
     completeThinkingStep(s3, 'Inserted into Studio', '✅');
     const loc = jobResult.insertLocation || 'ServerScriptService';
     const name = jobResult.scriptName || 'LycheeAI_Script';
     const explanation = jobResult.explanation || 'Script created and inserted into your Studio.';
     const responseText = `<p style="margin-bottom:8px;">${explanation}</p>`;
-    const steps = [
-      { icon: '📄', text: `Created script at ${loc}/${name}` },
-      { icon: '✅', text: 'No errors detected' },
-    ];
-    // Save response to project
+    const steps = [{ icon: '📄', text: `Created script at ${loc}/${name}` }, { icon: '✅', text: 'No errors detected' }];
     if (proj) { proj.messages.push({ role: 'agent', text: responseText, steps }); saveProjects(); }
     replaceThinkingWithResponse(thinkingId, responseText, steps);
   } else {
     completeThinkingStep(s3, 'Failed', '❌');
     replaceThinkingWithResponse(thinkingId, '<span style="color:var(--red)">Code generation failed. Please try again.</span>', []);
   }
+}
+
+async function sendAgentMessage() {
+  const input = document.getElementById('agentInput');
+  const btn = document.getElementById('agentSendBtn');
+  await sendAgentCore(input?.value?.trim(), input, btn);
+}
+
+async function sendAgentMessageDocked() {
+  const input = document.getElementById('agentInputDocked');
+  const btn = document.getElementById('agentSendBtnDocked');
+  await sendAgentCore(input?.value?.trim(), input, btn);
 }
 
 async function pollForJob(jobId) {
