@@ -76,6 +76,7 @@ body { font-family: var(--font-sans); background: var(--bg); color: var(--text);
 
 /* ── LANDING PAGE ── */
 #landingPage { display: block; }
+#appPage { background: var(--bg); }
 
 /* NAV */
 .nav {
@@ -1128,7 +1129,13 @@ function toast(msg, type='success') {
   document.body.appendChild(el); setTimeout(()=>el.remove(),3000);
 }
 
-if (state.accessToken) initApp();
+if (state.accessToken) {
+  document.getElementById('landingPage').style.display = 'none';
+  document.getElementById('appPage').classList.remove('hidden');
+  initApp();
+} else {
+  initScrollAnimations();
+}
 
 // ── SCROLL ANIMATIONS ──
 const observer = new IntersectionObserver((entries) => {
