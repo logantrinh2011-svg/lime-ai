@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lychee AI — AI Coding Assistant for Roblox</title>
+<link rel="icon" href="./favicon.ico"/>
+<link rel="apple-touch-icon" href="./apple-touch-icon.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -566,7 +568,7 @@ tbody tr:hover td { background: rgba(255,255,255,0.02); color: var(--text); }
     </div>
     <div class="nav-right">
       <button class="btn-nav btn-nav-ghost" onclick="showAuth('login')">Sign in</button>
-      <button class="btn-nav btn-nav-primary" onclick="showAuth('register')">Get Started</button>
+      <button class="btn-nav btn-nav-primary" onclick="handleStartScripting()">Get Started</button>
     </div>
   </nav>
 
@@ -586,7 +588,7 @@ tbody tr:hover td { background: rgba(255,255,255,0.02); color: var(--text); }
         </h1>
         <p class="hero-subtitle hero-sub-anim">Describe what you want built. Lychee AI generates complete Luau code and drops it directly into Roblox Studio — no copy-paste, no setup.</p>
         <div class="hero-btns hero-btn-anim">
-          <button class="btn-hero-primary" onclick="showAuth('register')">Start Building →</button>
+          <button class="btn-hero-primary" onclick="handleStartScripting()">Start Scripting →</button>
           <button class="btn-hero-ghost">Watch Demo</button>
         </div>
       </div>
@@ -924,10 +926,8 @@ async function doLogin() {
   if (!result?.accessToken) { errEl.textContent = result?.error || 'Login failed'; errEl.style.display = 'block'; return; }
   state.accessToken = result.accessToken; state.refreshToken = result.refreshToken;
   localStorage.setItem('accessToken', result.accessToken); localStorage.setItem('refreshToken', result.refreshToken);
-  // Show loading screen during app init
-  const ls = document.getElementById('loadingScreen');
-  if (ls) { ls.classList.remove('gone'); ls.style.opacity = '1'; ls.style.visibility = 'visible'; }
-  hideAuth(); initApp();
+  hideAuth();
+  initApp();
 }
 
 async function doRegister() {
@@ -950,15 +950,17 @@ function doLogout() {
 }
 
 async function initApp() {
-  // Keep landing hidden, show nothing until user loads
   document.getElementById('landingPage').style.display = 'none';
   document.getElementById('appPage').style.display = 'none';
-  state.user = await api('GET', '/user/me');
-  if (!state.user) { hideLoadingScreen(); doLogout(); return; }
-  // Only show app once we have the user
-  document.getElementById('appPage').style.display = 'block';
+  // Show a simple loading state
   document.getElementById('appPage').classList.remove('hidden');
-  hideLoadingScreen();
+  document.getElementById('appPage').style.display = 'block';
+  document.getElementById('mainContent').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;">
+    <div style="width:48px;height:48px;border-radius:14px;overflow:hidden;animation:loading-bounce 1s ease-in-out infinite;"><img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/></div>
+    <div style="font-size:13px;color:var(--text-3);">Loading your workspace...</div>
+  </div>`;
+  state.user = await api('GET', '/user/me');
+  if (!state.user) { doLogout(); return; }
   const initials = (state.user.display_name || state.user.email || '?').slice(0, 2).toUpperCase();
   document.getElementById('sidebarAvatar').textContent = initials;
   document.getElementById('sidebarEmail').textContent = state.user.email;
@@ -1599,15 +1601,19 @@ function spawnGameCards() {
 // Keep old startTypewriter name as alias just in case
 function startTypewriter() { startPlaceholderCycle(); }
 
-if (state.accessToken) {
-  // Hide everything while we check the token
-  document.getElementById('landingPage').style.display = 'none';
-  initApp();
-} else {
-  // No token - show landing page
-  document.getElementById('landingPage').style.display = 'block';
-  hideLoadingScreen();
-  initScrollAnimations();
+// Everyone sees landing page first
+document.getElementById('landingPage').style.display = 'block';
+const ls = document.getElementById('loadingScreen');
+if (ls) ls.remove();
+initScrollAnimations();
+
+function handleStartScripting() {
+  if (state.accessToken) {
+    document.getElementById('landingPage').style.display = 'none';
+    initApp();
+  } else {
+    showAuth('register');
+  }
 }
 
 // ── SCROLL ANIMATIONS ──
