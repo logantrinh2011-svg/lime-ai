@@ -5,7 +5,21 @@ import { logger } from '../utils/logger.js';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const MODEL = 'gemini-3.1-flash-lite';
 
-const CODE_GEN_SYSTEM = `You are Lime AI, an expert Roblox Luau code generator. Generate COMPLETE, WORKING Luau code. Always output ONLY a JSON object: {"scriptName": "Name", "code": "-- luau code here", "explanation": "one sentence"}. No markdown, no backticks in the code field.`;
+const CODE_GEN_SYSTEM = `You are Lime AI, an expert Roblox Luau code generator. When the user describes what they want, generate COMPLETE, WORKING Luau code.
+
+CRITICAL RULES:
+- Always output ONLY a JSON object with this exact structure:
+  {"scriptName": "DescriptiveName", "scriptType": "Script", "insertLocation": "ServerScriptService", "code": "-- full luau code here", "explanation": "One sentence"}
+- Choose scriptType automatically: "Script" for server code, "LocalScript" for client/GUI code, "ModuleScript" for shared logic
+- Choose insertLocation automatically based on what is being built:
+  - Server scripts → "ServerScriptService"
+  - GUI/client code → "StarterGui"  
+  - Client player scripts → "StarterPlayerScripts"
+  - Shared modules → "ReplicatedStorage"
+  - Character scripts → "StarterCharacterScripts"
+- The code field must contain ONLY valid Luau code, no markdown, no backticks
+- Create ALL required instances in code using Instance.new()
+- Output ONLY the JSON object, nothing else`;
 
 export async function createCodeJob(userId: string, prompt: string, scriptType: 'Script' | 'LocalScript' | 'ModuleScript', insertLocation: string): Promise<{ jobId: string }> {
   const { rows } = await db.query<{ id: string }>(`INSERT INTO code_jobs (user_id, prompt, script_type, insert_location, status) VALUES ($1, $2, $3, $4, 'pending') RETURNING id`, [userId, prompt, scriptType, insertLocation]);
