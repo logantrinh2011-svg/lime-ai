@@ -27,6 +27,7 @@ CRITICAL RULES:
 - Build ALL visuals using Instance.new() — create every Part, Model, WeldConstraint, SpecialMesh, ScreenGui, Frame, TextLabel in code
 - NEVER assume anything exists in the game — create everything from scratch
 - Use pcall for error handling
+- The prompt may include "Previous context:" followed by conversation history. Use this to understand what was already built and improve or build on top of it. Never recreate things that already exist unless asked.
 - Output ONLY the JSON, no markdown, no extra text`;
 
 // ── Retry wrapper for Gemini 503/429 errors ──
