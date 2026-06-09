@@ -1247,10 +1247,7 @@ async function sendAgentCore(text, inputEl, btnEl) {
       if (btnEl) { btnEl.disabled = false; } return;
     }
 
-    // Job is ready — put it on hold so plugin doesn't pick it up yet
-    await api('POST', `/jobs/${result.jobId}/hold`, {});
-
-    // NOW show plan approval — code is ready, fast to insert
+    // Job is ready, show plan approval — plugin won't pick it up (status=awaiting_approval)
     const planSteps = inferPlanSteps(text);
     const approved = await new Promise(resolve => {
       showPlanApproval(thinkingId, planSteps, () => resolve(true), () => resolve(false));
