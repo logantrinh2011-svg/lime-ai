@@ -29,6 +29,40 @@ CRITICAL RULES:
 - Use pcall for error handling
 - Output ONLY the JSON, no markdown, no extra text`;
 
+// ── Retry wrapper for Gemini 503/429 errors ──
+async function geminiWithRetry(
+  model: any,
+  prompt: string,
+  maxRetries = 4
+): Promise<string> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    } catch (err: any) {
+      lastError = err;
+      const msg = err?.message ?? '';
+      const is503 = msg.includes('503') || msg.includes('Service Unavailable') || msg.includes('high demand');
+      const is429 = msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED');
+      const isRetryable = is503 || is429 || msg.includes('Try again');
+
+      if (isRetryable && attempt < maxRetries) {
+        const waitMs = attempt * 3000; // 3s, 6s, 9s
+        logger.warn(`Gemini attempt ${attempt}/${maxRetries} failed (${is503 ? '503' : '429'}), retrying in ${waitMs / 1000}s...`, { jobId: 'pending' });
+        await new Promise(r => setTimeout(r, waitMs));
+        continue;
+      }
+
+      // Not retryable or out of retries — rethrow
+      throw err;
+    }
+  }
+
+  throw lastError ?? new Error('Gemini failed after all retries');
+}
+
 export async function createCodeJob(
   userId: string, prompt: string,
   scriptType: 'Script' | 'LocalScript' | 'ModuleScript',
@@ -50,11 +84,12 @@ async function processCodeJob(
   await db.query(`UPDATE code_jobs SET status = 'processing' WHERE id = $1`, [jobId]);
   try {
     const model = genAI.getGenerativeModel({ model: MODEL, systemInstruction: CODE_GEN_SYSTEM });
-    const result = await model.generateContent(`Generate Roblox Studio code for: ${prompt}`);
-    const rawText = result.response.text();
+
+    // Use retry wrapper instead of direct call
+    const rawText = await geminiWithRetry(model, `Generate Roblox Studio code for: ${prompt}`);
+
     const clean = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsed = JSON.parse(clean);
-
     const items = Array.isArray(parsed) ? parsed : [parsed];
 
     for (const item of items) {
@@ -69,10 +104,9 @@ async function processCodeJob(
       );
     }
 
-    // Mark original job as completed
     await db.query(
       `UPDATE code_jobs SET status = 'completed', script_name = $1, completed_at = NOW() WHERE id = $2`,
-      [items[0]?.scriptName || 'LimeAI_Script', jobId]
+      [items[0]?.scriptName || 'LycheeAI_Script', jobId]
     );
 
     logger.info('Code job completed', { jobId, count: items.length });
@@ -117,11 +151,19 @@ export async function markJobInserted(jobId: string, userId: string): Promise<vo
 
 export async function getJobStatus(jobId: string, userId: string) {
   const { rows } = await db.query(
-    `SELECT status, explanation, script_name, error_message FROM code_jobs WHERE id = $1 AND user_id = $2`,
+    `SELECT status, explanation, script_name, script_type, insert_location, error_message
+     FROM code_jobs WHERE id = $1 AND user_id = $2`,
     [jobId, userId]
   );
   if (!rows[0]) return null;
-  return { status: rows[0].status, explanation: rows[0].explanation, scriptName: rows[0].script_name, error: rows[0].error_message };
+  return {
+    status: rows[0].status,
+    explanation: rows[0].explanation,
+    scriptName: rows[0].script_name,
+    scriptType: rows[0].script_type,
+    insertLocation: rows[0].insert_location,
+    error: rows[0].error_message,
+  };
 }
 
 export async function getUserJobHistory(userId: string, limit = 20) {
