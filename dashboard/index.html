@@ -393,19 +393,16 @@ tool.Parent = game:GetService(<span class="str">"StarterPack"</span>)</div>
   </div>
 
   <div style="display:flex;flex-direction:column;height:100vh;">
-    <!-- Top bar -->
-    <div style="height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--bg-2);border-bottom:1px solid var(--border);z-index:100;">
-      <!-- Left: logo + project name -->
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:26px;height:26px;border-radius:7px;overflow:hidden;"><img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/></div>
-        <span style="font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--text);">Lychee AI</span>
-        <span style="font-size:10px;font-weight:700;background:rgba(232,84,122,0.15);color:var(--accent);padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:0.05em;">beta</span>
-        <span id="topProjectName" style="font-size:13px;color:var(--text-3);margin-left:4px;"></span>
+    <!-- Top bar like Lemonade ref 4 -->
+    <div style="height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:var(--bg-2);border-bottom:1px solid var(--border);z-index:100;">
+      <!-- Left: logo + beta + project name -->
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:24px;height:24px;border-radius:7px;overflow:hidden;flex-shrink:0;"><img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/></div>
+        <span style="font-size:11px;font-weight:600;color:var(--text-3);padding:2px 6px;border-radius:4px;background:var(--surface);">beta</span>
+        <span id="topProjectName" style="font-size:14px;font-weight:500;color:var(--text);"></span>
       </div>
       <!-- Right: avatar -->
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div id="topAvatar" onclick="toggleProfileMenu()" style="width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:white;cursor:pointer;transition:opacity 0.15s;user-select:none;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">?</div>
-      </div>
+      <div id="topAvatar" onclick="toggleProfileMenu()" style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;cursor:pointer;transition:opacity 0.15s;user-select:none;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">?</div>
     </div>
 
     <!-- Main content -->
@@ -538,14 +535,21 @@ document.addEventListener('click', (e) => {
 
 function navigate(page) {
   state.currentPage = page;
-  // Close profile menu
   const menu = document.getElementById('profileMenu');
   if (menu) menu.style.display = 'none';
   const pages = { build: renderBuild, usage: renderUsage, history: renderHistory, billing: renderBilling, settings: renderSettings, admin: renderAdmin };
   pages[page]?.();
-  // Update top project name
   const pn = document.getElementById('topProjectName');
-  if (pn) pn.textContent = page !== 'build' ? '/ ' + page.charAt(0).toUpperCase() + page.slice(1) : '';
+  if (pn) {
+    if (page === 'build' && currentProjectId) {
+      const proj = getProject(currentProjectId);
+      pn.textContent = proj ? proj.name : '';
+    } else if (page !== 'build') {
+      pn.textContent = page.charAt(0).toUpperCase() + page.slice(1);
+    } else {
+      pn.textContent = '';
+    }
+  }
 }
 
 function toggleFaq(el) {
@@ -589,24 +593,24 @@ async function renderBuild() {
     <div class="build-bg" id="buildBg"></div>
     <div style="display:flex;height:100%;position:relative;z-index:1;overflow:hidden;">
 
-      <!-- Projects sidebar -->
+      <!-- Projects sidebar exactly like ref 3 -->
       <div id="projectsSidebar" style="width:190px;flex-shrink:0;border-right:1px solid var(--border);background:var(--bg-2);display:flex;flex-direction:column;">
-        <div style="padding:12px 10px 10px;border-bottom:1px solid var(--border);">
-          <button onclick="startNewProject()" style="width:100%;display:flex;align-items:center;gap:7px;padding:8px 11px;border-radius:8px;background:var(--surface);border:1px solid var(--border-2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border-2)'">
-            <span style="font-size:15px;">+</span> New Project
+        <div style="padding:12px 10px 10px;">
+          <button onclick="startNewProject()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 11px;border-radius:8px;background:white;border:none;color:#1a1a1a;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">
+            <span style="font-size:16px;line-height:1;">+</span> New Project
           </button>
         </div>
-        <div style="padding:10px 10px 4px;font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);">Projects</div>
+        <div style="padding:4px 10px 6px;font-size:11px;font-weight:500;color:var(--text-3);">Projects</div>
         <div id="projectsList" style="flex:1;overflow-y:auto;padding:0 6px 10px;"></div>
-        <!-- Discord footer like Lemonade -->
-        <div style="padding:10px;border-top:1px solid var(--border);">
-          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--surface);border-radius:8px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='var(--surface)'">
+        <!-- Discord footer -->
+        <div style="padding:8px;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="#7289da"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.01.1.058.19.13.245a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
             <div>
               <div style="font-size:12px;font-weight:600;color:var(--text);">Discord</div>
               <div style="font-size:10px;color:var(--text-3);">Join for gifts</div>
             </div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" style="margin-left:auto;"><path d="M9 18l6-6-6-6"/></svg>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2.5" style="margin-left:auto;"><path d="M9 18l6-6-6-6"/></svg>
           </div>
         </div>
       </div>
@@ -662,29 +666,38 @@ async function renderBuild() {
 
         <!-- Docked input bar (after first message) -->
         <div id="agentInputBar" style="display:none;flex-shrink:0;padding:10px 20px 12px;border-top:1px solid var(--border);background:var(--bg-2);">
-          <div id="agentInputWrapDocked" style="max-width:720px;margin:0 auto;background:var(--surface);border:1px solid var(--border-2);border-radius:14px;padding:10px 13px;display:flex;align-items:flex-end;gap:10px;transition:border-color 0.2s,box-shadow 0.2s;">
+          <div id="agentInputWrapDocked" style="max-width:720px;margin:0 auto;background:var(--surface);border:1px solid var(--border-2);border-radius:12px;padding:10px 12px 8px;transition:border-color 0.2s,box-shadow 0.2s;">
+            <!-- Text area -->
             <textarea id="agentInputDocked" rows="1"
-              style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;resize:none;max-height:120px;line-height:1.6;"
+              style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;resize:none;max-height:120px;line-height:1.6;margin-bottom:8px;"
+              placeholder="Drag a card 🃏 or describe a mechanic..."
               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessageDocked()}"
               oninput="autoResize(this);onDockedInput(this)"
               onfocus="onDockedFocus()" onblur="onDockedBlur()"></textarea>
-            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <!-- Bottom row -->
+            <div style="display:flex;align-items:center;gap:6px;">
+              <!-- Left buttons -->
+              <button style="width:28px;height:28px;border-radius:6px;background:transparent;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:background 0.15s;font-size:14px;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'" title="Mention">@</button>
+              <button style="width:28px;height:28px;border-radius:6px;background:transparent;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:background 0.15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'" title="Image">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              </button>
+              <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;background:transparent;border:none;cursor:pointer;color:var(--text-2);font-size:12px;font-weight:500;transition:background 0.15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'">
+                Custom
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+              <!-- Spacer -->
+              <div style="flex:1;"></div>
+              <!-- Right: Gemini badge + send -->
+              <div style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:var(--surface-2);border:none;cursor:pointer;font-size:12px;color:var(--text-2);font-weight:500;transition:background 0.15s;" onmouseover="this.style.background='var(--bg-3)'" onmouseout="this.style.background='var(--surface-2)'">
+                <svg width="12" height="12" viewBox="0 0 24 24" style="flex-shrink:0;"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                Gemini 3.5 Flash
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
               <button id="agentSendBtnDocked" onclick="sendAgentMessageDocked()"
-                style="width:32px;height:32px;border-radius:8px;background:var(--surface-2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text-3);transition:all 0.2s;">➤</button>
+                style="width:30px;height:30px;border-radius:6px;background:var(--surface-2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:all 0.2s;flex-shrink:0;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
             </div>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:6px;font-size:11px;color:var(--text-3);">
-            <div style="display:flex;align-items:center;gap:4px;">
-              <div style="width:5px;height:5px;border-radius:50%;background:#4ade80;animation:pulse-dot 1.5s infinite;"></div>
-              Studio connected
-            </div>
-            <span>·</span>
-            <div style="display:flex;align-items:center;gap:4px;">
-              <svg width="11" height="11" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-              Gemini 3.5 Flash
-            </div>
-            <span>·</span>
-            <span>Enter to send</span>
           </div>
         </div>
 
@@ -728,30 +741,48 @@ function renderProjectsList() {
     el.innerHTML = `<div style="font-size:12px;color:var(--text-3);padding:8px 6px;">No projects yet</div>`;
     return;
   }
-  // Roblox Studio logo SVG (simplified)
-  const studioIcon = `<svg width="14" height="14" viewBox="0 0 100 100" style="flex-shrink:0;"><rect width="100" height="100" rx="18" fill="#00a2ff"/><path d="M25 25h50v50H25z" fill="white" opacity="0.3"/><path d="M35 35h30v30H35z" fill="white"/></svg>`;
+  const studioIcon = `<svg width="16" height="16" viewBox="0 0 100 100" style="flex-shrink:0;border-radius:4px;"><rect width="100" height="100" fill="#0078d4"/><rect x="22" y="22" width="56" height="56" rx="4" fill="white" opacity="0.9"/><rect x="34" y="34" width="32" height="32" rx="2" fill="#0078d4"/></svg>`;
   el.innerHTML = projects.map(p => `
-    <div onclick="switchProject('${p.id}')" style="display:flex;align-items:center;gap:7px;padding:8px 9px;border-radius:8px;cursor:pointer;margin-bottom:2px;background:${currentProjectId===p.id?'rgba(232,84,122,0.1)':'transparent'};border:1px solid ${currentProjectId===p.id?'rgba(232,84,122,0.25)':'transparent'};transition:all 0.15s;"
-      onmouseover="if('${p.id}'!==currentProjectId)this.style.background='rgba(255,255,255,0.04)'"
+    <div onclick="switchProject('${p.id}')" style="display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:6px;cursor:pointer;margin-bottom:1px;background:${currentProjectId===p.id?'rgba(255,255,255,0.08)':'transparent'};transition:background 0.12s;"
+      onmouseover="if('${p.id}'!==currentProjectId)this.style.background='rgba(255,255,255,0.05)'"
       onmouseout="if('${p.id}'!==currentProjectId)this.style.background='transparent'">
       ${studioIcon}
-      <span style="flex:1;font-size:12px;font-weight:500;color:${currentProjectId===p.id?'var(--accent)':'var(--text-2)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</span>
-      <span onclick="event.stopPropagation();deleteProject('${p.id}')" style="font-size:11px;color:var(--text-3);padding:2px 5px;border-radius:4px;opacity:0;transition:opacity 0.15s;cursor:pointer;" class="proj-del">✕</span>
+      <span style="flex:1;font-size:13px;font-weight:400;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</span>
+      <span onclick="event.stopPropagation();showProjMenu('${p.id}',event)" style="font-size:14px;color:var(--text-3);padding:2px 4px;border-radius:4px;opacity:0;transition:opacity 0.15s;cursor:pointer;line-height:1;" class="proj-menu">···</span>
     </div>`).join('');
   el.querySelectorAll('[onclick*="switchProject"]').forEach(row => {
-    const del = row.querySelector('.proj-del');
-    row.addEventListener('mouseenter', () => { if(del) del.style.opacity='1'; });
-    row.addEventListener('mouseleave', () => { if(del) del.style.opacity='0'; });
+    const menu = row.querySelector('.proj-menu');
+    row.addEventListener('mouseenter', () => { if(menu) menu.style.opacity='1'; });
+    row.addEventListener('mouseleave', () => { if(menu) menu.style.opacity='0'; });
   });
+}
+
+function showProjMenu(projId, e) {
+  e.stopPropagation();
+  // Simple delete for now
+  if (confirm('Delete this project?')) deleteProject(projId);
+}
+
+function updateTopBarProject() {
+  const pn = document.getElementById('topProjectName');
+  if (!pn) return;
+  if (currentProjectId) {
+    const proj = getProject(currentProjectId);
+    pn.textContent = proj ? proj.name : '';
+  } else {
+    pn.textContent = '';
+  }
 }
 
 function switchProject(id) {
   currentProjectId = id;
+  updateTopBarProject();
   renderBuild();
 }
 
 function startNewProject() {
   currentProjectId = null;
+  updateTopBarProject();
   renderBuild();
 }
 
@@ -794,7 +825,10 @@ function onDockedBlur() {
 }
 function onDockedInput(el) {
   const btn = document.getElementById('agentSendBtnDocked');
-  if (btn) { btn.style.background = el.value.trim() ? 'var(--accent)' : 'var(--surface-2)'; btn.style.color = el.value.trim() ? 'white' : 'var(--text-3)'; }
+  if (btn) {
+    btn.style.background = el.value.trim() ? 'var(--accent)' : 'var(--surface-2)';
+    btn.style.color = el.value.trim() ? 'white' : 'var(--text-3)';
+  }
 }
 
 let welcomeHidden = false;
@@ -887,8 +921,12 @@ function addThinkingStep(thinkingId, text, icon) {
   const stepId = 'step_' + Date.now();
   const div = document.createElement('div');
   div.id = stepId;
-  div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text-2);animation:step-in 0.2s ease;';
-  div.innerHTML = `<span>${icon}</span><span style="flex:1;">${text}</span><div style="width:11px;height:11px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>`;
+  div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--surface);border-radius:8px;font-size:13px;color:var(--text-2);animation:step-in 0.2s ease;margin-bottom:3px;';
+  // Use magnifying glass icon like ref 2 for search/working steps
+  div.innerHTML = `
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;color:var(--text-3);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <span style="flex:1;">${text}</span>
+    <div style="width:10px;height:10px;border:1.5px solid var(--text-3);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>`;
   stepsEl.appendChild(div);
   document.getElementById('agentMessages').scrollTop = 9999;
   return stepId;
@@ -897,8 +935,10 @@ function addThinkingStep(thinkingId, text, icon) {
 function completeThinkingStep(stepId, text, icon) {
   const el = document.getElementById(stepId);
   if (!el) return;
-  el.innerHTML = `<span>${icon}</span><span style="flex:1;color:var(--text);">${text}</span>`;
-  el.style.borderColor = 'rgba(74,222,128,0.2)';
+  el.innerHTML = `
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;color:var(--text-3);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <span style="flex:1;color:var(--text-2);">${text}</span>`;
+  el.style.opacity = '0.7';
 }
 
 function replaceThinkingWithResponse(thinkingId, responseText, steps) {
