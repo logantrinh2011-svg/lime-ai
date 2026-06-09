@@ -15,6 +15,7 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
 
