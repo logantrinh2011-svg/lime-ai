@@ -3,7 +3,7 @@ import { db } from '../db/client.js';
 import { logger } from '../utils/logger.js';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const MODEL = 'gemini-3.5-flash';
+const MODEL = 'gemini-2.0-flash';
 
 const CODE_GEN_SYSTEM = `You are Lychee AI, a master Roblox Luau developer with full control of Roblox Studio.
 
@@ -89,7 +89,8 @@ async function processCodeJob(
     const rawText = await geminiWithRetry(model, `Generate Roblox Studio code for: ${prompt}`);
 
     const clean = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const parsed = JSON.parse(clean);
+    const sanitized = clean.replace(/\\'/g, "'").replace(/\\\//g, '/').replace(/\\`/g, '`');
+    const parsed = JSON.parse(sanitized);
     const items = Array.isArray(parsed) ? parsed : [parsed];
 
     for (const item of items) {
