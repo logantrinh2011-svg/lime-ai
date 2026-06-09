@@ -3,16 +3,20 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { db } from './db/client.js';
 import { logger } from './utils/logger.js';
-import authRoutes from './routes/auth.routes.js';
-import userRoutes from './routes/user.routes.js';
-import jobRoutes from './routes/jobs.routes.js';
-import usageRoutes from './routes/usage.routes.js';
-import billingRoutes from './routes/billing.routes.js';
-import adminRoutes from './routes/admin.routes.js';
-import { authenticate } from './middleware/auth.middleware.js';
+import { requireAuth, requireAdmin, registerUser, loginUser,
+         refreshTokens, revokeRefreshToken, verifyEmail } from './middleware/auth.js';
+import { authRateLimit, planUsageLimit, checkBanned } from './middleware/rateLimiter.js';
+import { chatWithClaude, streamChatWithClaude,
+         ensureConversation } from './services/claude.service.js';
+import { createCodeJob, getPendingJobsForUser,
+         markJobInserted, getJobStatus,
+         getUserJobHistory } from './services/jobs.service.js';
+import Stripe from 'stripe';
+import { z } from 'zod';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
 
 // ── CORS ──
 const allowedOrigins = [
@@ -36,115 +40,279 @@ app.use(express.json({ limit: '10mb' }));
 // ── DB INIT ──
 async function initDb() {
   await db.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      email TEXT UNIQUE NOT NULL,
-      username TEXT,
-      display_name TEXT,
-      password_hash TEXT NOT NULL,
-      roblox_id TEXT,
-      roblox_username TEXT,
-      plan_name TEXT DEFAULT 'free',
-      stripe_customer_id TEXT,
-      stripe_subscription_id TEXT,
-      is_admin BOOLEAN DEFAULT false,
-      is_banned BOOLEAN DEFAULT false,
-      ban_reason TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS refresh_tokens (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-      token TEXT UNIQUE NOT NULL,
-      expires_at TIMESTAMPTZ NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS code_jobs (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-      prompt TEXT NOT NULL,
-      script_type TEXT NOT NULL DEFAULT 'Script',
-      insert_location TEXT NOT NULL DEFAULT 'ServerScriptService',
-      script_name TEXT NOT NULL DEFAULT 'LycheeAI_Script',
-      generated_code TEXT,
-      explanation TEXT,
-      status TEXT DEFAULT 'pending',
-      error_message TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      completed_at TIMESTAMPTZ,
-      inserted_at TIMESTAMPTZ
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS analytics_events (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-      event_type TEXT NOT NULL,
-      properties JSONB,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-
-  // ── Plugin sessions table for connection status ──
-  await db.query(`
     CREATE TABLE IF NOT EXISTS plugin_sessions (
       user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       last_seen TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-
   logger.info('Database initialized');
 }
 
-// ── ROUTES ──
-app.get('/health', (req, res) => res.json({ status: 'ok', service: 'Lychee AI Backend' }));
+// Input validation helper
+const validate = (schema: z.ZodSchema, body: unknown, res: any): boolean => {
+  const result = schema.safeParse(body);
+  if (!result.success) {
+    res.status(400).json({ error: 'Validation failed', details: result.error.flatten() });
+    return false;
+  }
+  return true;
+};
 
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/user', authenticate, userRoutes);
-app.use('/api/v1/jobs', authenticate, jobRoutes);
-app.use('/api/v1/usage', authenticate, usageRoutes);
-app.use('/api/v1/billing', authenticate, billingRoutes);
-app.use('/api/v1/admin', authenticate, adminRoutes);
+// ── HEALTH ──
+app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'Lychee AI Backend' }));
 
-// ── PLUGIN HEARTBEAT — plugin calls this every 3s while connected ──
-app.post('/api/v1/plugin/heartbeat', authenticate, async (req: any, res) => {
+// ── AUTH ──
+app.post('/api/v1/auth/register', authRateLimit, async (req, res) => {
+  const schema = z.object({ email: z.string().email().max(255), password: z.string().min(8).max(128), username: z.string().min(3).max(50).optional() });
+  if (!validate(schema, req.body, res)) return;
   try {
-    await db.query(
-      `INSERT INTO plugin_sessions (user_id, last_seen)
-       VALUES ($1, NOW())
-       ON CONFLICT (user_id) DO UPDATE SET last_seen = NOW()`,
-      [req.user.id]
-    );
-    res.json({ ok: true });
-  } catch (err) {
-    res.json({ ok: false });
+    const { userId } = await registerUser(req.body.email, req.body.password, req.body.username);
+    logger.info('User registered', { userId });
+    res.status(201).json({ message: 'Account created. Check your email to verify.' });
+  } catch (err: any) {
+    if (err.code === 'EMAIL_EXISTS') res.status(409).json({ error: 'Email already registered' });
+    else { logger.error('Registration error', err); res.status(500).json({ error: 'Registration failed' }); }
   }
 });
 
-// ── PLUGIN STATUS — website polls this to check if plugin is connected ──
-app.get('/api/v1/plugin/status', authenticate, async (req: any, res) => {
+app.post('/api/v1/auth/login', authRateLimit, async (req, res) => {
+  const schema = z.object({ email: z.string().email(), password: z.string() });
+  if (!validate(schema, req.body, res)) return;
   try {
-    const result = await db.query(
-      `SELECT last_seen FROM plugin_sessions WHERE user_id = $1`,
-      [req.user.id]
-    );
-    if (!result.rows.length) {
-      return res.json({ connected: false });
-    }
-    const lastSeen = new Date(result.rows[0].last_seen);
-    const secondsAgo = (Date.now() - lastSeen.getTime()) / 1000;
-    res.json({ connected: secondsAgo < 10 });
-  } catch (err) {
-    res.json({ connected: false });
+    const tokens = await loginUser(req.body.email, req.body.password, req.ip || '', req.headers['user-agent'] || '');
+    res.json(tokens);
+  } catch (err: any) {
+    if (err.code === 'INVALID_CREDENTIALS') res.status(401).json({ error: 'Invalid email or password' });
+    else if (err.code === 'BANNED') res.status(403).json({ error: 'Account suspended' });
+    else { logger.error('Login error', err); res.status(500).json({ error: 'Login failed' }); }
   }
+});
+
+app.post('/api/v1/auth/refresh', async (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) { res.status(400).json({ error: 'Refresh token required' }); return; }
+  try {
+    const tokens = await refreshTokens(refreshToken, req.ip || '');
+    res.json(tokens);
+  } catch { res.status(401).json({ error: 'Invalid or expired refresh token' }); }
+});
+
+app.post('/api/v1/auth/logout', requireAuth, async (req, res) => {
+  const { refreshToken } = req.body;
+  if (refreshToken) await revokeRefreshToken(refreshToken);
+  res.json({ message: 'Logged out' });
+});
+
+app.get('/api/v1/auth/verify-email', async (req, res) => {
+  const { token } = req.query;
+  if (!token || typeof token !== 'string') { res.status(400).json({ error: 'Token required' }); return; }
+  try { await verifyEmail(token); res.json({ message: 'Email verified successfully' }); }
+  catch { res.status(400).json({ error: 'Invalid or expired verification token' }); }
+});
+
+// ── USER ──
+app.get('/api/v1/user/me', requireAuth, async (req: any, res) => {
+  const { rows } = await db.query(
+    `SELECT u.id, u.email, u.username, u.display_name, u.roblox_username,
+            u.avatar_url, u.email_verified, u.created_at,
+            sp.name AS plan_name, sp.display_name AS plan_display_name,
+            sp.requests_per_day, sp.requests_per_month, sp.features,
+            sub.status AS subscription_status, sub.current_period_end
+     FROM users u
+     LEFT JOIN subscription_plans sp ON u.plan_id = sp.id
+     LEFT JOIN subscriptions sub ON sub.user_id = u.id AND sub.status = 'active'
+     WHERE u.id = $1`,
+    [req.user.sub]
+  );
+  if (rows.length === 0) { res.status(404).json({ error: 'User not found' }); return; }
+  res.json(rows[0]);
+});
+
+app.patch('/api/v1/user/me', requireAuth, async (req: any, res) => {
+  const schema = z.object({ displayName: z.string().max(100).optional(), robloxUsername: z.string().max(50).optional() });
+  if (!validate(schema, req.body, res)) return;
+  const { displayName, robloxUsername } = req.body;
+  await db.query(
+    `UPDATE users SET display_name = COALESCE($1, display_name), roblox_username = COALESCE($2, roblox_username), updated_at = NOW() WHERE id = $3`,
+    [displayName, robloxUsername, req.user.sub]
+  );
+  res.json({ message: 'Profile updated' });
+});
+
+// ── CHAT ──
+app.post('/api/v1/chat', requireAuth, checkBanned, planUsageLimit, async (req: any, res) => {
+  const schema = z.object({ message: z.string().min(1).max(32000), conversationId: z.string().uuid().optional(), stream: z.boolean().optional().default(false) });
+  if (!validate(schema, req.body, res)) return;
+  const { message, conversationId: rawConvId, stream } = req.body;
+  const userId = req.user.sub;
+  const planName = req.user.plan;
+  const { rows: planRows } = await db.query(
+    `SELECT sp.max_tokens_per_request FROM users u JOIN subscription_plans sp ON u.plan_id = sp.id WHERE u.id = $1`,
+    [userId]
+  );
+  const plan = planRows[0] ?? { max_tokens_per_request: 2048 };
+  try {
+    const conversationId = await ensureConversation(userId, rawConvId, message);
+    await db.query(`INSERT INTO analytics_events (user_id, event_type, properties) VALUES ($1, 'chat_sent', $2)`, [userId, JSON.stringify({ conversationId, messageLength: message.length, stream })]);
+    if (stream) {
+      await streamChatWithClaude({ userId, userMessage: message, conversationId, planName, maxTokens: plan.max_tokens_per_request, res });
+    } else {
+      const result = await chatWithClaude({ userId, userMessage: message, conversationId, planName, maxTokens: plan.max_tokens_per_request });
+      res.json({ conversationId, ...result });
+    }
+  } catch (err: any) {
+    if (err.code === 'LIMIT_DAILY' || err.code === 'LIMIT_MONTHLY') {
+      res.status(429).json({ error: err.message, upgradeUrl: `${process.env.DASHBOARD_URL}/billing` });
+    } else { logger.error('Chat error', { error: err.message, userId }); res.status(500).json({ error: 'AI request failed. Please try again.' }); }
+  }
+});
+
+// ── CONVERSATIONS ──
+app.get('/api/v1/conversations', requireAuth, async (req: any, res) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+  const offset = parseInt(req.query.offset as string) || 0;
+  const { rows } = await db.query(
+    `SELECT c.id, c.title, c.created_at, c.updated_at, COUNT(m.id) AS message_count, MAX(m.created_at) AS last_message_at
+     FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id
+     WHERE c.user_id = $1 AND c.archived = false
+     GROUP BY c.id ORDER BY COALESCE(MAX(m.created_at), c.created_at) DESC LIMIT $2 OFFSET $3`,
+    [req.user.sub, limit, offset]
+  );
+  res.json({ conversations: rows, limit, offset });
+});
+
+app.get('/api/v1/conversations/:id', requireAuth, async (req: any, res) => {
+  const { rows } = await db.query(
+    `SELECT c.*, array_agg(json_build_object('id', m.id, 'role', m.role, 'content', m.content, 'created_at', m.created_at) ORDER BY m.created_at) AS messages
+     FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id
+     WHERE c.id = $1 AND c.user_id = $2 GROUP BY c.id`,
+    [req.params.id, req.user.sub]
+  );
+  if (rows.length === 0) { res.status(404).json({ error: 'Conversation not found' }); return; }
+  res.json(rows[0]);
+});
+
+app.delete('/api/v1/conversations/:id', requireAuth, async (req: any, res) => {
+  await db.query(`UPDATE conversations SET archived = true WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.sub]);
+  res.json({ message: 'Conversation archived' });
+});
+
+// ── USAGE ──
+app.get('/api/v1/usage', requireAuth, async (req: any, res) => {
+  const userId = req.user.sub;
+  const [daily, monthly, planInfo] = await Promise.all([
+    db.query(`SELECT COUNT(*) AS count, COALESCE(SUM(tokens_input),0) AS tokens_in, COALESCE(SUM(tokens_output),0) AS tokens_out FROM usage_logs WHERE user_id=$1 AND success=true AND created_at>=DATE_TRUNC('day',NOW())`, [userId]),
+    db.query(`SELECT COUNT(*) AS count, COALESCE(SUM(tokens_input),0) AS tokens_in, COALESCE(SUM(tokens_output),0) AS tokens_out, COALESCE(SUM(cost_usd),0) AS cost FROM usage_logs WHERE user_id=$1 AND success=true AND created_at>=DATE_TRUNC('month',NOW())`, [userId]),
+    db.query(`SELECT sp.requests_per_day, sp.requests_per_month FROM users u JOIN subscription_plans sp ON u.plan_id=sp.id WHERE u.id=$1`, [userId]),
+  ]);
+  res.json({
+    today: { requests: parseInt(daily.rows[0].count), tokensInput: parseInt(daily.rows[0].tokens_in), tokensOutput: parseInt(daily.rows[0].tokens_out), limit: planInfo.rows[0]?.requests_per_day ?? 20 },
+    month: { requests: parseInt(monthly.rows[0].count), tokensInput: parseInt(monthly.rows[0].tokens_in), tokensOutput: parseInt(monthly.rows[0].tokens_out), costUsd: parseFloat(monthly.rows[0].cost).toFixed(4), limit: planInfo.rows[0]?.requests_per_month ?? 100 },
+  });
+});
+
+// ── BILLING ──
+app.post('/api/v1/billing/create-checkout', requireAuth, async (req: any, res) => {
+  const schema = z.object({ planName: z.enum(['pro', 'team', 'enterprise']) });
+  if (!validate(schema, req.body, res)) return;
+  const { rows: plan } = await db.query(`SELECT * FROM subscription_plans WHERE name=$1`, [req.body.planName]);
+  if (!plan[0]?.stripe_price_id) { res.status(400).json({ error: 'Plan not available' }); return; }
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription', payment_method_types: ['card'],
+    line_items: [{ price: plan[0].stripe_price_id, quantity: 1 }],
+    success_url: `${process.env.DASHBOARD_URL}/billing?success=true`,
+    cancel_url: `${process.env.DASHBOARD_URL}/billing?canceled=true`,
+    metadata: { userId: req.user.sub, planName: req.body.planName },
+  });
+  res.json({ url: session.url });
+});
+
+app.post('/api/v1/billing/portal', requireAuth, async (req: any, res) => {
+  const { rows } = await db.query(`SELECT stripe_customer_id FROM subscriptions WHERE user_id=$1 LIMIT 1`, [req.user.sub]);
+  if (!rows[0]?.stripe_customer_id) { res.status(400).json({ error: 'No billing account' }); return; }
+  const session = await stripe.billingPortal.sessions.create({ customer: rows[0].stripe_customer_id, return_url: `${process.env.DASHBOARD_URL}/billing` });
+  res.json({ url: session.url });
+});
+
+// ── CODE JOBS ──
+app.post('/api/v1/jobs', requireAuth, checkBanned, planUsageLimit, async (req: any, res) => {
+  const schema = z.object({ prompt: z.string().min(5).max(4000), scriptType: z.enum(['Script','LocalScript','ModuleScript']).default('Script'), insertLocation: z.string().max(100).default('ServerScriptService') });
+  if (!validate(schema, req.body, res)) return;
+  try {
+    const { jobId } = await createCodeJob(req.user.sub, req.body.prompt, req.body.scriptType, req.body.insertLocation);
+    res.status(202).json({ jobId, message: 'Job created. Claude is generating your code. The Studio plugin will insert it automatically.' });
+  } catch (err) { logger.error('Create job error', err); res.status(500).json({ error: 'Failed to create code job' }); }
+});
+
+app.get('/api/v1/jobs/pending', requireAuth, async (req: any, res) => {
+  try { res.json(await getPendingJobsForUser(req.user.sub)); }
+  catch { res.status(500).json({ error: 'Failed to fetch pending jobs' }); }
+});
+
+app.get('/api/v1/jobs/:id/status', requireAuth, async (req: any, res) => {
+  const status = await getJobStatus(req.params.id, req.user.sub);
+  if (!status) { res.status(404).json({ error: 'Job not found' }); return; }
+  res.json(status);
+});
+
+app.post('/api/v1/jobs/:id/inserted', requireAuth, async (req: any, res) => {
+  try { await markJobInserted(req.params.id, req.user.sub); res.json({ message: 'Job marked as inserted' }); }
+  catch { res.status(500).json({ error: 'Failed to mark job inserted' }); }
+});
+
+app.get('/api/v1/jobs', requireAuth, async (req: any, res) => {
+  res.json({ jobs: await getUserJobHistory(req.user.sub) });
+});
+
+// ── PLUGIN HEARTBEAT ──
+app.post('/api/v1/plugin/heartbeat', requireAuth, async (req: any, res) => {
+  try {
+    await db.query(
+      `INSERT INTO plugin_sessions (user_id, last_seen) VALUES ($1, NOW()) ON CONFLICT (user_id) DO UPDATE SET last_seen = NOW()`,
+      [req.user.sub]
+    );
+    res.json({ ok: true });
+  } catch { res.json({ ok: false }); }
+});
+
+// ── PLUGIN STATUS ──
+app.get('/api/v1/plugin/status', requireAuth, async (req: any, res) => {
+  try {
+    const result = await db.query(`SELECT last_seen FROM plugin_sessions WHERE user_id=$1`, [req.user.sub]);
+    if (!result.rows.length) return res.json({ connected: false });
+    const secondsAgo = (Date.now() - new Date(result.rows[0].last_seen).getTime()) / 1000;
+    res.json({ connected: secondsAgo < 10 });
+  } catch { res.json({ connected: false }); }
+});
+
+// ── ADMIN ──
+app.get('/api/v1/admin/users', requireAuth, requireAdmin, async (req: any, res) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const offset = parseInt(req.query.offset as string) || 0;
+  const search = req.query.search as string;
+  let query = `SELECT u.id, u.email, u.username, u.is_banned, u.created_at, sp.name AS plan_name, u.last_login_at FROM users u LEFT JOIN subscription_plans sp ON u.plan_id=sp.id WHERE 1=1`;
+  const params: unknown[] = [];
+  if (search) { params.push(`%${search}%`); query += ` AND (u.email ILIKE $${params.length} OR u.username ILIKE $${params.length})`; }
+  params.push(limit, offset);
+  query += ` ORDER BY u.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  const { rows } = await db.query(query, params);
+  res.json({ users: rows });
+});
+
+app.post('/api/v1/admin/users/:id/ban', requireAuth, requireAdmin, async (req: any, res) => {
+  const { reason } = req.body;
+  await db.query(`UPDATE users SET is_banned=true, ban_reason=$1 WHERE id=$2`, [reason, req.params.id]);
+  await db.query(`INSERT INTO audit_logs (actor_id, user_id, action, resource, resource_id, new_value) VALUES ($1,$2,'ban_user','user',$2,$3)`, [req.user.sub, req.params.id, JSON.stringify({ reason })]);
+  res.json({ message: 'User banned' });
+});
+
+app.get('/api/v1/admin/stats', requireAuth, requireAdmin, async (_req, res) => {
+  const [users, revenue, usage] = await Promise.all([
+    db.query(`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE created_at>=NOW()-INTERVAL '30 days') AS new_30d FROM users`),
+    db.query(`SELECT COALESCE(SUM(amount_cents),0) AS total_cents, COALESCE(SUM(amount_cents) FILTER (WHERE created_at>=DATE_TRUNC('month',NOW())),0) AS month_cents FROM billing_records WHERE status='paid'`),
+    db.query(`SELECT COUNT(*) AS total_requests, COALESCE(SUM(tokens_input+tokens_output),0) AS total_tokens FROM usage_logs WHERE success=true AND created_at>=DATE_TRUNC('month',NOW())`),
+  ]);
+  res.json({ users: users.rows[0], revenue: revenue.rows[0], usage: usage.rows[0] });
 });
 
 // ── START ──
