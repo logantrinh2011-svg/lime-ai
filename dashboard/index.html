@@ -1298,33 +1298,20 @@ async function sendAgentCore(text, inputEl, btnEl) {
     // Release job for plugin
     await api('POST', `/jobs/${result.jobId}/release`, {});
 
-    // Poll until plugin marks it inserted, ticking checkboxes along the way
+    // Animate checkboxes progressively while plugin inserts (estimated 3s per step)
     await new Promise(resolve => {
-      let polls = 0;
       let currentStep = 0;
-      const interval = setInterval(async () => {
-        const status = await api('GET', `/jobs/${result.jobId}/status`);
-        polls++;
-        if (status?.status === 'inserted') {
-          // Complete all remaining steps
-          for (let i = currentStep; i < stepCount; i++) {
-            setPlanStepDone(i, stepCount);
-            await sleep(300);
-          }
+      setPlanStepLoading(0);
+      const interval = setInterval(() => {
+        setPlanStepDone(currentStep, stepCount);
+        currentStep++;
+        if (currentStep >= stepCount) {
           clearInterval(interval);
-          resolve();
-        } else if (status?.status === 'completed') {
-          // Still waiting for plugin — animate next step if time passes
-          if (polls % 3 === 0 && currentStep < stepCount - 1) {
-            setPlanStepDone(currentStep, stepCount);
-            currentStep++;
-            setPlanStepLoading(currentStep);
-          }
-        } else if (polls > 40) {
-          clearInterval(interval);
-          resolve();
+          setTimeout(resolve, 400);
+        } else {
+          setPlanStepLoading(currentStep);
         }
-      }, 2000);
+      }, 3000);
     });
 
     if (btnEl) { btnEl.disabled = false; }
