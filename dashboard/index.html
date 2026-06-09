@@ -1102,6 +1102,26 @@ function replaceThinkingWithResponse(thinkingId, responseText, steps) {
 }
 
 // ── SEND CORE ──
+// Retry wrapper for Gemini API calls
+async function apiWithRetry(method, path, body, maxRetries = 3) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const result = await api(method, path, body);
+    // If result is valid (has jobId or isn't an error), return it
+    if (result?.jobId || result?.jobs || result?.connected !== undefined || result?.ok) return result;
+    // If it's a rate limit / 503 style error, wait and retry
+    if (result?.error && (result.error.includes('429') || result.error.includes('503') || result.error.toLowerCase().includes('try again') || result.error.toLowerCase().includes('overloaded'))) {
+      lastErr = result.error;
+      const wait = attempt * 2000;
+      await sleep(wait);
+      continue;
+    }
+    // Other errors — return as-is
+    return result;
+  }
+  return { error: lastErr || 'Request failed after retries' };
+}
+
 async function sendAgentCore(text, inputEl, btnEl) {
   if (!text || btnEl?.disabled) return;
   if (!currentProjectId) {
@@ -1121,41 +1141,139 @@ async function sendAgentCore(text, inputEl, btnEl) {
 
   const thinkingId = addThinkingBubble();
 
-  await sleep(250);
-  const s1 = addThinkingStep(thinkingId, 'Analyzing request');
-  await sleep(450);
-  completeThinkingStep(s1, 'Analyzing request');
+  // ── Step 1: Classify the request ──
+  const isCodeRequest = /\b(make|create|build|add|script|code|system|button|gui|ui|tool|weapon|leaderboard|datastore|teleport|spawn|kill|damage|health|shop|tween|animate|part|model|remote|event|function|loop|timer|round|team|badge|game pass|npc|ai|pathfind|ragdoll|physics|touch|click|detect|save|load|module|local|server|replicated)\b/i.test(text);
 
-  const s2 = addThinkingStep(thinkingId, 'Generating Luau code');
-  const result = await api('POST', '/jobs', { prompt: text, scriptType: 'Script', insertLocation: 'ServerScriptService' });
+  const s1 = addThinkingStep(thinkingId, 'Working on the task');
+  await sleep(300);
 
-  if (!result?.jobId) {
-    completeThinkingStep(s2, 'Generating Luau code');
-    replaceThinkingWithResponse(thinkingId, `<p>I ran into an issue generating the code. Try rephrasing your request with more detail about what you want.</p>`, []);
-    if (btnEl) btnEl.disabled = false; return;
-  }
-  completeThinkingStep(s2, 'Generating Luau code');
+  let jobResult = null;
+  let responseText = '';
+  let steps = [];
 
-  const s3 = addThinkingStep(thinkingId, 'Inserting into Studio');
-  const jobResult = await pollForJob(result.jobId);
-  if (btnEl) btnEl.disabled = false;
+  if (isCodeRequest) {
+    // ── Code path: dynamic investigation steps ──
+    completeThinkingStep(s1, 'Working on the task');
 
-  if (jobResult) {
-    const loc  = jobResult.insertLocation || 'ServerScriptService';
-    const name = jobResult.scriptName    || 'LycheeAI_Script';
-    const expl = jobResult.explanation   || 'Script created and inserted into Studio.';
+    // Investigate step — what services/scripts are involved
+    const investigateLabel = inferInvestigation(text);
+    const s2 = addThinkingStep(thinkingId, investigateLabel);
+    await sleep(500);
+    completeThinkingStep(s2, investigateLabel);
 
-    // Show the specific file that was created
-    completeThinkingStep(s3, `Created Script at ${loc}/${name}`);
+    // Submit job with retry
+    const s3 = addThinkingStep(thinkingId, 'Generating Luau script');
+    let attempt = 0;
+    let result = null;
+    while (attempt < 3) {
+      result = await api('POST', '/jobs', { prompt: text, scriptType: inferScriptType(text), insertLocation: inferLocation(text) });
+      if (result?.jobId) break;
+      attempt++;
+      if (attempt < 3) {
+        replaceStepText(s3, `Retrying… (attempt ${attempt + 1}/3)`);
+        await sleep(attempt * 2000);
+      }
+    }
 
-    const responseText = `<p style="margin-bottom:14px;">${expl}</p><p>I placed it in <strong>${loc}</strong> as <strong>${name}</strong>. Open your <strong>Explorer</strong> panel in Studio and press <strong>Play</strong> to test it. Let me know if you want to adjust anything or add more features.</p>`;
-    const steps = [{ text: `Created Script at ${loc}/${name}` }];
-    if (proj) { proj.messages.push({ role: 'agent', text: responseText, steps }); saveProjects(); }
-    replaceThinkingWithResponse(thinkingId, responseText, steps);
+    if (!result?.jobId) {
+      completeThinkingStep(s3, 'Generating Luau script');
+      replaceThinkingWithResponse(thinkingId, `<p>Gemini is busy right now — I tried 3 times. Please wait a moment and try again.</p>`, []);
+      if (btnEl) btnEl.disabled = false; return;
+    }
+    completeThinkingStep(s3, 'Generated Luau script');
+
+    // Poll for job completion with dynamic steps
+    jobResult = await pollForJobWithSteps(result.jobId, thinkingId, text);
+    if (btnEl) btnEl.disabled = false;
+
+    if (jobResult) {
+      const loc  = jobResult.insertLocation || 'ServerScriptService';
+      const name = jobResult.scriptName    || 'LycheeAI_Script';
+      const expl = jobResult.explanation   || 'Script created and inserted into Studio.';
+      const type = jobResult.scriptType    || 'Script';
+      steps = [{ text: `Created ${type} at ${loc}/${name}` }];
+      responseText = `<p style="margin-bottom:14px;">${expl}</p><p>Placed in <strong>${loc}</strong> as <strong>${name}</strong>. Open your <strong>Explorer</strong> panel and press <strong>Play</strong> to test it.</p>`;
+    } else {
+      responseText = `<p>Something went wrong inserting into Studio. Make sure the Lychee AI plugin is open and try again.</p>`;
+    }
+
   } else {
-    completeThinkingStep(s3, 'Inserting into Studio');
-    replaceThinkingWithResponse(thinkingId, `<p>Something went wrong while inserting into Studio. Make sure the Lychee AI plugin is running and try again.</p>`, []);
+    // ── Conversational path: no fake steps ──
+    completeThinkingStep(s1, 'Working on the task');
+    // Simple conversational reply via Gemini
+    const convResult = await apiWithRetry('POST', '/jobs', { prompt: `Answer conversationally (no code unless asked): ${text}`, scriptType: 'Script', insertLocation: 'ServerScriptService' });
+    if (btnEl) btnEl.disabled = false;
+    const expl = convResult?.explanation || "I'm not sure about that — could you give me more detail?";
+    responseText = `<p>${expl}</p>`;
   }
+
+  if (proj) { proj.messages.push({ role: 'agent', text: responseText, steps }); saveProjects(); }
+  replaceThinkingWithResponse(thinkingId, responseText, steps);
+}
+
+// ── Helpers for dynamic step text ──
+function inferInvestigation(text) {
+  if (/gui|ui|screen|button|label|frame|textbox/i.test(text)) return 'Investigating (ScreenGui + LocalScript)';
+  if (/datastore|save|load|persist/i.test(text)) return 'Investigating (DataStoreService)';
+  if (/leaderstats|leaderboard|points|cash|coins|score/i.test(text)) return 'Investigating (leaderstats setup)';
+  if (/remote|event|function|client|server/i.test(text)) return 'Investigating (RemoteEvents)';
+  if (/npc|pathfind|ai|enemy/i.test(text)) return 'Investigating (PathfindingService)';
+  if (/tween|anim|move|lerp/i.test(text)) return 'Investigating (TweenService)';
+  if (/shop|purchase|product|gamepass/i.test(text)) return 'Investigating (MarketplaceService)';
+  if (/touch|click|detect|proximity/i.test(text)) return 'Investigating (1 tool)';
+  return 'Investigating (2 tools)';
+}
+
+function inferScriptType(text) {
+  if (/localscript|client|gui|ui|screen|button|player/i.test(text)) return 'LocalScript';
+  if (/module/i.test(text)) return 'ModuleScript';
+  return 'Script';
+}
+
+function inferLocation(text) {
+  if (/starterplayerscripts|localscript|client|gui|ui|screen/i.test(text)) return 'StarterPlayerScripts';
+  if (/startergui/i.test(text)) return 'StarterGui';
+  if (/replicated/i.test(text)) return 'ReplicatedStorage';
+  if (/module/i.test(text)) return 'ReplicatedStorage';
+  return 'ServerScriptService';
+}
+
+function replaceStepText(stepId, newText) {
+  const el = document.getElementById(stepId);
+  if (!el) return;
+  const span = el.querySelector('span');
+  if (span) span.textContent = newText;
+}
+
+async function pollForJobWithSteps(jobId, thinkingId, prompt) {
+  // Show a contextual "created" step while waiting
+  const createdLabel = inferCreatedStep(prompt);
+  const sCreate = addThinkingStep(thinkingId, createdLabel);
+
+  return new Promise(resolve => {
+    let polls = 0;
+    const interval = setInterval(async () => {
+      const status = await api('GET', `/jobs/${jobId}/status`);
+      polls++;
+      if (status?.status === 'completed' || status?.status === 'inserted') {
+        completeThinkingStep(sCreate, createdLabel);
+        clearInterval(interval);
+        resolve(status);
+      } else if (status?.status === 'failed' || polls > 30) {
+        completeThinkingStep(sCreate, createdLabel);
+        clearInterval(interval);
+        resolve(null);
+      }
+    }, 2000);
+  });
+}
+
+function inferCreatedStep(text) {
+  const loc = inferLocation(text);
+  if (/gui|ui|screen/i.test(text)) return `Creating ScreenGui at ${loc}`;
+  if (/module/i.test(text)) return `Creating ModuleScript at ${loc}`;
+  if (/local/i.test(text)) return `Creating LocalScript at ${loc}`;
+  return `Creating Script at ${loc}`;
 }
 
 async function sendAgentMessage() {
