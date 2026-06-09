@@ -537,7 +537,10 @@ async function initApp() {
   if (avatar) avatar.textContent = initials;
   const nameEl = document.getElementById('profileMenuName');
   if (nameEl) nameEl.textContent = state.user.email;
-  navigate('build');
+  // Check URL for initial page
+  const urlPage = window.location.pathname.split('/dashboard/')[1] || 'build';
+  const validPages = ['build','usage','billing','settings','admin','history'];
+  navigate(validPages.includes(urlPage) ? urlPage : 'build');
 }
 
 function toggleProfileMenu() {
@@ -563,10 +566,19 @@ function navigate(page) {
   const pn = document.getElementById('topProjectName');
   if (page === 'build') {
     updateTopBarProject(false);
+    history.pushState({ page }, '', '/dashboard');
   } else {
     if (pn) { pn.textContent = page.charAt(0).toUpperCase() + page.slice(1); pn.style.fontSize='14px'; pn.style.fontWeight='500'; pn.style.opacity='1'; pn.style.transform='none'; }
+    history.pushState({ page }, '', '/dashboard/' + page);
   }
 }
+
+window.addEventListener('popstate', (e) => {
+  const page = e.state?.page || 'build';
+  state.currentPage = page;
+  const pages = { build: renderBuild, usage: renderUsage, history: renderHistory, billing: renderBilling, settings: renderSettings, admin: renderAdmin };
+  pages[page]?.();
+});
 
 function toggleFaq(el) {
   const item = el.parentElement;
@@ -707,7 +719,7 @@ async function renderBuild() {
             <!-- Top area - text input -->
             <div style="padding:14px 16px 10px;background:var(--surface);">
               <textarea id="agentInputDocked" rows="3"
-                style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;resize:none;min-height:60px;max-height:180px;line-height:1.7;"
+                style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;font-weight:500;resize:none;min-height:60px;max-height:180px;line-height:1.7;"
                 placeholder="Connect the Lychee AI plugin in Roblox Studio first"
                 disabled
                 onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessageDocked()}"
@@ -1189,7 +1201,7 @@ function setPluginConnected(connected) {
     if (tooltip) tooltip.style.display = 'none';
     if (textarea) {
       textarea.disabled = false;
-      textarea.placeholder = 'Drag a card 🃏 or describe a mechanic...';
+      textarea.placeholder = 'Describe what you want to build...';
       textarea.style.cursor = 'text';
       textarea.style.color = 'var(--text)';
     }
