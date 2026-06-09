@@ -26,7 +26,8 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-he
 
 /* ── SHINE ANIMATION ── */
 @keyframes shine {
-  0% { background-position: -200% center; }
+  0%   { background-position: -200% center; }
+  15%  { background-position: 200% center; }
   100% { background-position: 200% center; }
 }
 .shine-btn {
@@ -40,7 +41,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-he
   top: 0; left: 0; right: 0; bottom: 0;
   background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.7) 50%, transparent 60%);
   background-size: 200% auto;
-  animation: shine 2.5s linear infinite;
+  animation: shine 5s ease-in-out infinite;
   pointer-events: none;
 }
 
@@ -892,18 +893,19 @@ function renderAgentResponse(text, steps) {
   const msgList = document.getElementById('msgList');
   if (!msgList) return;
   const div = document.createElement('div');
-  div.style.cssText = 'display:flex;gap:11px;align-items:flex-start;animation:msg-in 0.3s ease;';
+  div.style.cssText = 'display:flex;gap:12px;align-items:flex-start;animation:msg-in 0.3s ease;';
   div.innerHTML = `
-    <div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;margin-top:2px;">
+    <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;flex-shrink:0;margin-top:3px;">
       <img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/>
     </div>
-    <div style="flex:1;max-width:680px;">
-      <div style="font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--text);margin-bottom:8px;letter-spacing:-0.3px;">Lychee AI</div>
-      <div style="font-size:14px;line-height:1.75;color:var(--text-2);">
-        ${text}
-        ${steps.length ? `<div style="margin-top:12px;display:flex;flex-direction:column;gap:3px;">${steps.map(s=>`<div style="display:flex;align-items:center;gap:7px;padding:6px 11px;background:var(--surface);border:1px solid var(--border);border-radius:7px;font-size:12px;color:var(--text-2);">${s.icon} ${s.text}</div>`).join('')}</div>`:''}
-      </div>
-      <div style="margin-top:7px;font-size:11px;color:var(--text-3);">Rate this response <span style="cursor:pointer;" onclick="this.textContent='👍'">👍</span> <span style="cursor:pointer;" onclick="this.textContent='👎'">👎</span></div>
+    <div style="flex:1;max-width:720px;">
+      <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:12px;letter-spacing:-0.3px;">Lychee AI</div>
+      <div style="font-size:15px;line-height:1.85;color:var(--text);">${text}</div>
+      ${steps.length ? `<div style="margin-top:14px;display:flex;flex-direction:column;gap:4px;">${steps.map(s=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface);border-radius:8px;font-size:13px;color:var(--text-2);">
+          ${STEP_FILE_ICON} ${s.text}
+        </div>`).join('')}</div>` : ''}
+      <div style="margin-top:10px;font-size:11px;color:var(--text-3);">Rate this response &nbsp;<span style="cursor:pointer;" onclick="this.textContent='▲ helpful'">▲</span>&nbsp;<span style="cursor:pointer;margin-left:6px;" onclick="this.textContent='▼'">▼</span></div>
     </div>`;
   msgList.appendChild(div);
   document.getElementById('agentMessages').scrollTop = 9999;
@@ -915,19 +917,13 @@ function addThinkingBubble() {
   const id = 'thinking_' + Date.now();
   const div = document.createElement('div');
   div.id = id;
-  div.style.cssText = 'display:flex;gap:11px;align-items:flex-start;animation:msg-in 0.25s ease;';
+  div.style.cssText = 'display:flex;gap:12px;align-items:flex-start;animation:msg-in 0.25s ease;';
   div.innerHTML = `
-    <div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;margin-top:2px;">
+    <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;flex-shrink:0;margin-top:3px;">
       <img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/>
     </div>
-    <div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        <span style="font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--text);letter-spacing:-0.3px;">Lychee AI</span>
-        <span id="thinkingBadge_${id}" style="background:rgba(232,84,122,0.12);color:var(--accent);font-size:10px;padding:3px 10px;border-radius:9999px;display:flex;align-items:center;gap:5px;">
-          <span style="width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block;animation:pulse-dot 1s infinite;"></span>
-          Working on the task
-        </span>
-      </div>
+    <div style="flex:1;">
+      <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:12px;letter-spacing:-0.3px;">Lychee AI</div>
       <div id="thinkingSteps_${id}" style="display:flex;flex-direction:column;gap:4px;"></div>
     </div>`;
   msgList.appendChild(div);
@@ -935,50 +931,46 @@ function addThinkingBubble() {
   return id;
 }
 
-function addThinkingStep(thinkingId, text, icon) {
+const STEP_SEARCH_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;color:var(--text-3);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`;
+const STEP_FILE_ICON   = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--text-3);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+const STEP_GEAR_ICON   = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--text-3);"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>`;
+
+function pickStepIcon(text) {
+  const t = text.toLowerCase();
+  if (t.includes('creat') || t.includes('insert') || t.includes('folder') || t.includes('script') || t.includes('part') || t.includes('remote') || t.includes('event') || t.includes('edit')) return STEP_FILE_ICON;
+  if (t.includes('search') || t.includes('find') || t.includes('analyz') || t.includes('investigat') || t.includes('reference') || t.includes('animat') || t.includes('look')) return STEP_SEARCH_ICON;
+  return STEP_GEAR_ICON;
+}
+
+function addThinkingStep(thinkingId, text) {
   const stepsEl = document.getElementById('thinkingSteps_' + thinkingId);
   if (!stepsEl) return;
   const stepId = 'step_' + Date.now();
   const div = document.createElement('div');
   div.id = stepId;
-  div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--surface);border-radius:8px;font-size:13px;color:var(--text-2);animation:step-in 0.2s ease;margin-bottom:3px;';
-  // Use magnifying glass icon like ref 2 for search/working steps
-  div.innerHTML = `
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;color:var(--text-3);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-    <span style="flex:1;">${text}</span>
-    <div style="width:10px;height:10px;border:1.5px solid var(--text-3);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>`;
+  div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface);border-radius:8px;font-size:13px;color:var(--text-2);animation:step-in 0.2s ease;margin-bottom:3px;';
+  div.innerHTML = `${pickStepIcon(text)}<span style="flex:1;">${text}</span><div style="width:10px;height:10px;border:1.5px solid var(--text-3);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>`;
   stepsEl.appendChild(div);
   document.getElementById('agentMessages').scrollTop = 9999;
   return stepId;
 }
 
-function completeThinkingStep(stepId, text, icon) {
+function completeThinkingStep(stepId, text) {
   const el = document.getElementById(stepId);
   if (!el) return;
-  el.innerHTML = `
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;color:var(--text-3);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-    <span style="flex:1;color:var(--text-2);">${text}</span>`;
-  el.style.opacity = '0.7';
+  el.innerHTML = `${pickStepIcon(text)}<span style="flex:1;color:var(--text-2);">${text}</span>`;
+  el.style.opacity = '0.6';
 }
 
 function replaceThinkingWithResponse(thinkingId, responseText, steps) {
   const el = document.getElementById(thinkingId);
   if (!el) return;
-  const temp = document.createElement('div');
-  temp.innerHTML = el.outerHTML;
-  const badge = document.getElementById('thinkingBadge_' + thinkingId);
-  if (badge) badge.remove();
-  // Replace entire thinking bubble with final response
-  el.style.animation = 'none';
   el.style.transition = 'opacity 0.2s';
   el.style.opacity = '0';
-  setTimeout(() => {
-    el.remove();
-    renderAgentResponse(responseText, steps);
-  }, 200);
+  setTimeout(() => { el.remove(); renderAgentResponse(responseText, steps); }, 200);
 }
 
-// Shared send logic
+// ── SEND CORE ──
 async function sendAgentCore(text, inputEl, btnEl) {
   if (!text || btnEl?.disabled) return;
   if (!currentProjectId) {
@@ -994,37 +986,43 @@ async function sendAgentCore(text, inputEl, btnEl) {
   const proj = getProject(currentProjectId);
   if (proj) { proj.messages.push({ role: 'user', text }); saveProjects(); }
   renderUserMessage(text);
+
   const thinkingId = addThinkingBubble();
-  await sleep(300);
-  const s1 = addThinkingStep(thinkingId, 'Analyzing your request...', '🧠');
-  await sleep(500);
-  completeThinkingStep(s1, 'Request analyzed', '✅');
-  const s2 = addThinkingStep(thinkingId, 'Generating Luau code with Gemini...', '⚡');
+
+  await sleep(250);
+  const s1 = addThinkingStep(thinkingId, 'Analyzing request');
+  await sleep(450);
+  completeThinkingStep(s1, 'Analyzing request');
+
+  const s2 = addThinkingStep(thinkingId, 'Generating Luau code');
   const result = await api('POST', '/jobs', { prompt: text, scriptType: 'Script', insertLocation: 'ServerScriptService' });
+
   if (!result?.jobId) {
-    completeThinkingStep(s2, 'Failed to generate', '❌');
-    replaceThinkingWithResponse(thinkingId, '<span style="color:var(--red)">Something went wrong. Please try again.</span>', []);
+    completeThinkingStep(s2, 'Generating Luau code');
+    replaceThinkingWithResponse(thinkingId, `<p>I ran into an issue generating the code. Try rephrasing your request with more detail about what you want.</p>`, []);
     if (btnEl) btnEl.disabled = false; return;
   }
-  completeThinkingStep(s2, 'Code generated', '✅');
-  const s3 = addThinkingStep(thinkingId, 'Inserting into Roblox Studio...', '🎮');
+  completeThinkingStep(s2, 'Generating Luau code');
+
+  const s3 = addThinkingStep(thinkingId, 'Inserting into Studio');
   const jobResult = await pollForJob(result.jobId);
   if (btnEl) btnEl.disabled = false;
+
   if (jobResult) {
-    completeThinkingStep(s3, 'Inserted into Studio', '✅');
-    const loc = jobResult.insertLocation || 'ServerScriptService';
-    const name = jobResult.scriptName || 'LycheeAI_Script';
-    const explanation = jobResult.explanation || 'I created a script for you.';
-    const responseText = `
-      <p style="margin-bottom:10px;color:var(--text);">${explanation}</p>
-      <p style="margin-bottom:10px;color:var(--text-2);font-size:13px;">I placed it in <strong style="color:var(--text);">${loc}</strong> as <strong style="color:var(--text);">${name}</strong>. Check your Explorer panel in Studio — just press <strong style="color:var(--text);">Play</strong> to test it.</p>
-      <p style="color:var(--text-2);font-size:13px;">Let me know if you'd like me to adjust anything, add more features, or build something else!</p>`;
-    const steps = [{ icon: '📄', text: `Created script at ${loc}/${name}` }, { icon: '✅', text: 'No errors detected' }];
+    const loc  = jobResult.insertLocation || 'ServerScriptService';
+    const name = jobResult.scriptName    || 'LycheeAI_Script';
+    const expl = jobResult.explanation   || 'Script created and inserted into Studio.';
+
+    // Show the specific file that was created
+    completeThinkingStep(s3, `Created Script at ${loc}/${name}`);
+
+    const responseText = `<p style="margin-bottom:14px;">${expl}</p><p>I placed it in <strong>${loc}</strong> as <strong>${name}</strong>. Open your <strong>Explorer</strong> panel in Studio and press <strong>Play</strong> to test it. Let me know if you want to adjust anything or add more features.</p>`;
+    const steps = [{ text: `Created Script at ${loc}/${name}` }];
     if (proj) { proj.messages.push({ role: 'agent', text: responseText, steps }); saveProjects(); }
     replaceThinkingWithResponse(thinkingId, responseText, steps);
   } else {
-    completeThinkingStep(s3, 'Failed', '❌');
-    replaceThinkingWithResponse(thinkingId, '<span style="color:var(--red)">Code generation failed. Please try again.</span>', []);
+    completeThinkingStep(s3, 'Inserting into Studio');
+    replaceThinkingWithResponse(thinkingId, `<p>Something went wrong while inserting into Studio. Make sure the Lychee AI plugin is running and try again.</p>`, []);
   }
 }
 
