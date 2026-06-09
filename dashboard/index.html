@@ -1186,7 +1186,7 @@ async function sendAgentCore(text, inputEl, btnEl) {
     jobResult = await pollForJobWithSteps(result.jobId, thinkingId, text);
     if (btnEl) btnEl.disabled = false;
 
-    if (jobResult) {
+    if (jobResult?._ok) {
       const loc  = jobResult.insertLocation || 'ServerScriptService';
       const name = jobResult.scriptName    || 'LycheeAI_Script';
       const expl = jobResult.explanation   || 'Script created and inserted into Studio.';
@@ -1194,7 +1194,16 @@ async function sendAgentCore(text, inputEl, btnEl) {
       steps = [{ text: `Created ${type} at ${loc}/${name}` }];
       responseText = `<p style="margin-bottom:14px;">${expl}</p><p>Placed in <strong>${loc}</strong> as <strong>${name}</strong>. Open your <strong>Explorer</strong> panel and press <strong>Play</strong> to test it.</p>`;
     } else {
-      responseText = `<p>Something went wrong inserting into Studio. Make sure the Lychee AI plugin is open and try again.</p>`;
+      const err = jobResult?._error || '';
+      const isGeminiBusy = err.includes('503') || err.includes('high demand') || err.includes('Service Unavailable') || err.includes('429');
+      const isTimeout = err === 'timeout';
+      if (isGeminiBusy) {
+        responseText = `<p>Gemini is overloaded right now and couldn't recover after retrying. Wait 30 seconds and try again.</p>`;
+      } else if (isTimeout) {
+        responseText = `<p>This took too long to generate. Try a simpler request or try again in a moment.</p>`;
+      } else {
+        responseText = `<p>Something went wrong generating your code. Make sure the Lychee AI plugin is open, then try again.</p>`;
+      }
     }
 
   } else {
@@ -1246,7 +1255,6 @@ function replaceStepText(stepId, newText) {
 }
 
 async function pollForJobWithSteps(jobId, thinkingId, prompt) {
-  // Show a contextual "created" step while waiting
   const createdLabel = inferCreatedStep(prompt);
   const sCreate = addThinkingStep(thinkingId, createdLabel);
 
@@ -1255,14 +1263,21 @@ async function pollForJobWithSteps(jobId, thinkingId, prompt) {
     const interval = setInterval(async () => {
       const status = await api('GET', `/jobs/${jobId}/status`);
       polls++;
+
       if (status?.status === 'completed' || status?.status === 'inserted') {
         completeThinkingStep(sCreate, createdLabel);
         clearInterval(interval);
-        resolve(status);
-      } else if (status?.status === 'failed' || polls > 30) {
+        resolve({ ...status, _ok: true });
+      } else if (status?.status === 'failed') {
         completeThinkingStep(sCreate, createdLabel);
         clearInterval(interval);
-        resolve(null);
+        // Pass back the error message so we can show it
+        resolve({ _ok: false, _error: status.error || '' });
+      } else if (polls > 50) {
+        // 100s timeout
+        completeThinkingStep(sCreate, createdLabel);
+        clearInterval(interval);
+        resolve({ _ok: false, _error: 'timeout' });
       }
     }, 2000);
   });
