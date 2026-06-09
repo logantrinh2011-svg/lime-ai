@@ -24,6 +24,26 @@ html{scroll-behavior:smooth;}
 body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;overflow-x:hidden;}
 ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--surface-2);border-radius:9999px;}
 
+/* ── SHINE ANIMATION ── */
+@keyframes shine {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.shine-btn {
+  position: relative;
+  overflow: hidden;
+  background: white;
+}
+.shine-btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.7) 50%, transparent 60%);
+  background-size: 200% auto;
+  animation: shine 2.5s linear infinite;
+  pointer-events: none;
+}
+
 /* ── SCROLL REVEAL ── */
 .reveal{opacity:0;transform:translateY(28px);transition:opacity 0.7s ease,transform 0.7s ease;}
 .reveal.visible{opacity:1;transform:none;}
@@ -244,7 +264,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02);color:var(--text);}
     </div>
     <div class="nav-right">
       <button class="btn-nav btn-nav-ghost" onclick="showAuth('login')">Sign in</button>
-      <button class="btn-nav btn-nav-primary" onclick="handleStartScripting()">Get Started</button>
+      <button class="btn-nav btn-nav-primary" onclick="handleStartScripting()">Dashboard</button>
     </div>
   </nav>
 
@@ -596,11 +616,11 @@ async function renderBuild() {
       <!-- Projects sidebar exactly like ref 3 -->
       <div id="projectsSidebar" style="width:190px;flex-shrink:0;border-right:1px solid var(--border);background:var(--bg-2);display:flex;flex-direction:column;">
         <div style="padding:12px 10px 10px;">
-          <button onclick="startNewProject()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 11px;border-radius:8px;background:white;border:none;color:#1a1a1a;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">
-            <span style="font-size:16px;line-height:1;">+</span> New Project
+          <button onclick="startNewProject()" class="shine-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 11px;border-radius:8px;background:white;border:none;color:#1a1a1a;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">
+            <span style="font-size:16px;line-height:1;font-weight:400;">+</span> New Project
           </button>
         </div>
-        <div style="padding:4px 10px 6px;font-size:11px;font-weight:500;color:var(--text-3);">Projects</div>
+        <div style="padding:6px 10px 6px;font-size:12px;font-weight:600;color:var(--text-3);letter-spacing:0.02em;">Projects</div>
         <div id="projectsList" style="flex:1;overflow-y:auto;padding:0 6px 10px;"></div>
         <!-- Discord footer -->
         <div style="padding:8px;border-top:1px solid var(--border);">
@@ -741,14 +761,14 @@ function renderProjectsList() {
     el.innerHTML = `<div style="font-size:12px;color:var(--text-3);padding:8px 6px;">No projects yet</div>`;
     return;
   }
-  const studioIcon = `<svg width="16" height="16" viewBox="0 0 100 100" style="flex-shrink:0;border-radius:4px;"><rect width="100" height="100" fill="#0078d4"/><rect x="22" y="22" width="56" height="56" rx="4" fill="white" opacity="0.9"/><rect x="34" y="34" width="32" height="32" rx="2" fill="#0078d4"/></svg>`;
+  const studioIcon = `<img src="./roblox-studio-icon.png" style="width:18px;height:18px;border-radius:4px;flex-shrink:0;object-fit:cover;"/>`;
   el.innerHTML = projects.map(p => `
-    <div onclick="switchProject('${p.id}')" style="display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:6px;cursor:pointer;margin-bottom:1px;background:${currentProjectId===p.id?'rgba(255,255,255,0.08)':'transparent'};transition:background 0.12s;"
+    <div onclick="switchProject('${p.id}')" style="display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:6px;cursor:pointer;margin-bottom:1px;background:${currentProjectId===p.id?'rgba(255,255,255,0.08)':'transparent'};transition:background 0.12s;"
       onmouseover="if('${p.id}'!==currentProjectId)this.style.background='rgba(255,255,255,0.05)'"
       onmouseout="if('${p.id}'!==currentProjectId)this.style.background='transparent'">
       ${studioIcon}
-      <span style="flex:1;font-size:13px;font-weight:400;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</span>
-      <span onclick="event.stopPropagation();showProjMenu('${p.id}',event)" style="font-size:14px;color:var(--text-3);padding:2px 4px;border-radius:4px;opacity:0;transition:opacity 0.15s;cursor:pointer;line-height:1;" class="proj-menu">···</span>
+      <span style="flex:1;font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</span>
+      <span onclick="event.stopPropagation();showProjMenu('${p.id}',event)" style="font-size:16px;font-weight:700;color:var(--text-3);padding:2px 4px;border-radius:4px;opacity:0;transition:opacity 0.15s;cursor:pointer;line-height:1;letter-spacing:1px;" class="proj-menu">···</span>
     </div>`).join('');
   el.querySelectorAll('[onclick*="switchProject"]').forEach(row => {
     const menu = row.querySelector('.proj-menu');
