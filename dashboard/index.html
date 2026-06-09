@@ -219,6 +219,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-he
 .studio-pill-dot{width:6px;height:6px;border-radius:50%;background:#4ade80;animation:pulse-dot 1.5s infinite;}
 
 /* ── AGENT CHAT ── */
+@keyframes waveDot{0%,60%,100%{transform:translateY(0);opacity:0.4;}30%{transform:translateY(-4px);opacity:1;}}
 @keyframes msg-in{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
 @keyframes step-in{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:none;}}
 @keyframes spin{to{transform:rotate(360deg);}}
@@ -680,35 +681,41 @@ async function renderBuild() {
         </div>
 
         <!-- Docked input bar (after first message) -->
-        <div id="agentInputBar" style="display:none;flex-shrink:0;padding:10px 20px 14px;border-top:1px solid var(--border);background:var(--bg-2);position:relative;">
+        <div id="agentInputBar" style="display:none;flex-shrink:0;padding:12px 20px 14px;border-top:1px solid var(--border);background:var(--bg-2);position:relative;">
 
           <!-- Connect plugin tooltip (shown when disconnected) -->
-          <div id="pluginTooltip" style="display:none;position:absolute;top:-108px;left:50%;transform:translateX(-50%);background:var(--bg-3);border:1px solid rgba(248,113,113,0.3);border-radius:12px;padding:12px 16px;width:290px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:100;animation:msg-in 0.2s ease;">
+          <div id="pluginTooltip" style="display:none;position:absolute;top:-122px;left:50%;transform:translateX(-50%);background:var(--bg-3);border:1px solid rgba(248,113,113,0.3);border-radius:12px;padding:14px 16px;width:290px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:100;animation:msg-in 0.2s ease;">
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
-              <div style="display:flex;align-items:flex-start;gap:10px;">
-                <div style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;margin-top:4px;"></div>
-                <div>
-                  <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">Connect plugin</div>
-                  <div style="font-size:12px;color:var(--text-2);line-height:1.5;">You must first install and connect the Lychee AI plugin on Roblox Studio.</div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <!-- Animated wave dots -->
+                <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
+                  <div class="wave-dot" style="width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:waveDot 1.2s ease-in-out infinite;animation-delay:0s;"></div>
+                  <div class="wave-dot" style="width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:waveDot 1.2s ease-in-out infinite;animation-delay:0.2s;"></div>
+                  <div class="wave-dot" style="width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:waveDot 1.2s ease-in-out infinite;animation-delay:0.4s;"></div>
                 </div>
+                <div style="font-size:13px;font-weight:700;color:var(--text);">Connect plugin</div>
               </div>
-              <button onclick="document.getElementById('pluginTooltip').style.display='none'" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:16px;line-height:1;flex-shrink:0;padding:0;">✕</button>
+              <button onclick="document.getElementById('pluginTooltip').style.display='none'" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:15px;line-height:1;flex-shrink:0;padding:0;">✕</button>
             </div>
-            <a href="https://create.roblox.com/store/asset/89065588962229/Lychee-AI-Coding-Assistant-for-Roblox-Studio" target="_blank" style="display:block;margin-top:10px;padding:8px;background:white;color:#111;border-radius:8px;font-size:13px;font-weight:600;text-align:center;text-decoration:none;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Install</a>
+            <div style="font-size:12px;color:var(--text-2);line-height:1.5;margin-top:6px;">You must first install and connect the Lychee AI plugin on Roblox Studio.</div>
+            <a href="https://create.roblox.com/store/asset/89065588962229/Lychee-AI-Coding-Assistant-for-Roblox-Studio" target="_blank" style="display:block;margin-top:10px;padding:9px;background:white;color:#111;border-radius:8px;font-size:13px;font-weight:600;text-align:center;text-decoration:none;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Install</a>
             <!-- Arrow pointing down -->
             <div style="position:absolute;bottom:-6px;left:50%;width:10px;height:10px;background:var(--bg-3);border-right:1px solid rgba(248,113,113,0.3);border-bottom:1px solid rgba(248,113,113,0.3);transform:translateX(-50%) rotate(45deg);"></div>
           </div>
 
-          <div id="agentInputWrapDocked" style="max-width:720px;margin:0 auto;background:var(--surface);border:1.5px solid var(--border-2);border-radius:14px;padding:12px 14px 10px;transition:border-color 0.3s,box-shadow 0.3s;">
-            <!-- Text area -->
-            <textarea id="agentInputDocked" rows="2"
-              style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;resize:none;min-height:44px;max-height:160px;line-height:1.6;margin-bottom:8px;"
-              placeholder="Drag a card 🃏 or describe a mechanic..."
-              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessageDocked()}"
-              oninput="autoResize(this);onDockedInput(this)"
-              onfocus="onDockedFocus()" onblur="onDockedBlur()"></textarea>
-            <!-- Bottom row -->
-            <div style="display:flex;align-items:center;gap:6px;">
+          <div id="agentInputWrapDocked" style="max-width:720px;margin:0 auto;background:var(--surface);border:1.5px solid var(--border-2);border-radius:14px;overflow:hidden;transition:border-color 0.3s;">
+            <!-- Top area - text input -->
+            <div style="padding:14px 16px 10px;background:var(--surface);">
+              <textarea id="agentInputDocked" rows="3"
+                style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;resize:none;min-height:60px;max-height:180px;line-height:1.7;"
+                placeholder="Connect the Lychee AI plugin in Roblox Studio first"
+                disabled
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessageDocked()}"
+                oninput="autoResize(this);onDockedInput(this)"
+                onfocus="onDockedFocus()" onblur="onDockedBlur()"></textarea>
+            </div>
+            <!-- Bottom bar - slightly darker -->
+            <div style="padding:8px 12px;background:var(--bg-3);display:flex;align-items:center;gap:6px;border-top:1px solid var(--border);">
               <!-- Left buttons -->
               <button style="width:28px;height:28px;border-radius:6px;background:transparent;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:background 0.15s;font-size:14px;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'" title="Mention">@</button>
               <button style="width:28px;height:28px;border-radius:6px;background:transparent;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:background 0.15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'" title="Image">
@@ -718,7 +725,6 @@ async function renderBuild() {
                 Custom
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </div>
-              <!-- Spacer -->
               <div style="flex:1;"></div>
               <!-- Right: Gemini badge + send -->
               <div style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:var(--surface-2);border:none;cursor:pointer;font-size:12px;color:var(--text-2);font-weight:500;transition:background 0.15s;" onmouseover="this.style.background='var(--bg-3)'" onmouseout="this.style.background='var(--surface-2)'">
@@ -919,10 +925,13 @@ function onAgentBlur() {
   if (!el?.value?.trim()) { phPaused = false; startPlaceholderCycle(); }
 }
 function onDockedFocus() {
+  // Never show pink outline — keep red if disconnected, else subtle only
+  if (!pluginConnected) return; // red stays
   const wrap = document.getElementById('agentInputWrapDocked');
-  if (wrap) { wrap.style.borderColor='rgba(232,84,122,0.45)'; wrap.style.boxShadow='0 0 0 3px rgba(232,84,122,0.1)'; }
+  if (wrap) { wrap.style.borderColor='var(--border-2)'; wrap.style.boxShadow='none'; }
 }
 function onDockedBlur() {
+  if (!pluginConnected) return; // red stays
   const wrap = document.getElementById('agentInputWrapDocked');
   if (wrap) { wrap.style.borderColor='var(--border-2)'; wrap.style.boxShadow='none'; }
 }
@@ -1172,15 +1181,28 @@ function setPluginConnected(connected) {
   pluginConnected = connected;
   const wrap = document.getElementById('agentInputWrapDocked');
   const tooltip = document.getElementById('pluginTooltip');
+  const textarea = document.getElementById('agentInputDocked');
   if (!wrap) return;
   if (connected) {
     wrap.style.borderColor = 'var(--border-2)';
     wrap.style.boxShadow = 'none';
     if (tooltip) tooltip.style.display = 'none';
+    if (textarea) {
+      textarea.disabled = false;
+      textarea.placeholder = 'Drag a card 🃏 or describe a mechanic...';
+      textarea.style.cursor = 'text';
+      textarea.style.color = 'var(--text)';
+    }
   } else {
     wrap.style.borderColor = 'var(--red)';
     wrap.style.boxShadow = 'none';
     if (tooltip) tooltip.style.display = 'block';
+    if (textarea) {
+      textarea.disabled = true;
+      textarea.placeholder = 'Connect the Lychee AI plugin in Roblox Studio first';
+      textarea.style.cursor = 'default';
+      textarea.style.color = 'var(--text-3)';
+    }
   }
 }
 
