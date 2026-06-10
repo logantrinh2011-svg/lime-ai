@@ -1,392 +1,1743 @@
-// ============================================================
-// Lychee AI Platform — Express Router (all routes)
-// ============================================================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lychee AI — AI Coding Assistant for Roblox</title>
+<link rel="icon" href="./favicon.ico" type="image/x-icon"/>
+<link rel="icon" href="./lychee-ai-logo.png" type="image/png"/>
+<link rel="apple-touch-icon" href="./apple-touch-icon.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Caveat:wght@700&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#1c1c1c; --bg-2:#222; --bg-3:#2a2a2a;
+  --surface:#2e2e2e; --surface-2:#363636;
+  --border:rgba(255,255,255,0.06); --border-2:rgba(255,255,255,0.1);
+  --text:#f0f0f0; --text-2:#a0a0a0; --text-3:#606060;
+  --accent:#e8547a; --accent-2:#f07090; --accent-glow:rgba(232,84,122,0.2);
+  --green:#4ade80; --red:#f87171; --amber:#fbbf24;
+  --font-display:'Plus Jakarta Sans',sans-serif; --font-sans:'DM Sans',sans-serif; --font-mono:'JetBrains Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;overflow-x:hidden;}
+::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--surface-2);border-radius:9999px;}
 
-import { Router, Request, Response } from 'express';
-import { requireAuth, requireAdmin, registerUser, loginUser,
-         refreshTokens, revokeRefreshToken, verifyEmail } from '../middleware/auth.js';
-import { authRateLimit, planUsageLimit, checkBanned } from '../middleware/rateLimiter.js';
-import { chatWithClaude, streamChatWithClaude,
-         ensureConversation, checkUsageLimits } from '../services/claude.service.js';
-import { createCodeJob, getPendingJobsForUser,
-         markJobInserted, getJobStatus,
-         getUserJobHistory } from '../services/jobs.service.js';
-import { db } from '../db/client.js';
-import { logger } from '../utils/logger.js';
-import Stripe from 'stripe';
-import { z } from 'zod';
+/* ── SHINE ANIMATION ── */
+@keyframes shine {
+  0%   { transform: translateX(-100%) skewX(-15deg); opacity: 0; }
+  5%   { opacity: 1; }
+  30%  { transform: translateX(300%) skewX(-15deg); opacity: 0; }
+  100% { transform: translateX(300%) skewX(-15deg); opacity: 0; }
+}
+.shine-btn {
+  position: relative;
+  overflow: hidden;
+}
+.shine-btn::after {
+  content: '';
+  position: absolute;
+  top: -10%; left: 0;
+  width: 40%; height: 120%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+  animation: shine 6s ease-in-out infinite;
+  pointer-events: none;
+}
 
-const router = Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
+/* ── SCROLL REVEAL ── */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity 0.7s ease,transform 0.7s ease;}
+.reveal.visible{opacity:1;transform:none;}
+.reveal-right{opacity:0;transform:translateX(28px);transition:opacity 0.7s ease,transform 0.7s ease;}
+.reveal-right.visible{opacity:1;transform:none;}
+.reveal-delay-1{transition-delay:0.1s;} .reveal-delay-2{transition-delay:0.2s;} .reveal-delay-3{transition-delay:0.3s;}
+.reveal-delay-4{transition-delay:0.4s;} .reveal-delay-5{transition-delay:0.5s;}
 
-const validate = (schema: z.ZodSchema, body: unknown, res: Response): boolean => {
-  const result = schema.safeParse(body);
-  if (!result.success) {
-    res.status(400).json({ error: 'Validation failed', details: result.error.flatten() });
-    return false;
-  }
-  return true;
+/* ── NAV ── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;align-items:center;justify-content:space-between;padding:14px 48px;background:rgba(28,28,28,0.9);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;cursor:pointer;}
+.nav-logo-img{width:34px;height:34px;border-radius:10px;overflow:hidden;flex-shrink:0;}
+.nav-logo-img img{width:100%;height:100%;object-fit:cover;}
+.nav-logo-text{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.3px;}
+.nav-links{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,0.05);border-radius:9999px;padding:4px;border:1px solid var(--border);}
+.nav-link{padding:7px 16px;border-radius:9999px;font-size:14px;font-weight:500;color:var(--text-2);cursor:pointer;transition:all 0.15s;text-decoration:none;}
+.nav-link:hover{background:rgba(255,255,255,0.08);color:var(--text);}
+.nav-right{display:flex;align-items:center;gap:10px;}
+.btn-nav{padding:9px 20px;border-radius:9999px;font-family:var(--font-sans);font-size:14px;font-weight:600;border:none;cursor:pointer;transition:all 0.2s;}
+.btn-nav-ghost{background:transparent;color:var(--text-2);}
+.btn-nav-ghost:hover{color:var(--text);}
+.btn-nav-primary{background:var(--accent);color:white;box-shadow:0 0 20px var(--accent-glow);}
+.btn-nav-primary:hover{background:var(--accent-2);transform:translateY(-1px);}
+
+/* ── HERO ── */
+.hero{min-height:100vh;display:flex;align-items:center;padding:120px 48px 80px;position:relative;overflow:hidden;}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 50% at 70% 50%,rgba(232,84,122,0.07) 0%,transparent 70%);pointer-events:none;}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;max-width:1200px;margin:0 auto;width:100%;}
+.hero-tag{display:inline-flex;align-items:center;gap:8px;background:rgba(232,84,122,0.1);border:1px solid rgba(232,84,122,0.2);border-radius:9999px;padding:6px 14px;font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:20px;opacity:0;animation:fade-up 0.5s ease 0.1s forwards;}
+.hero-tag-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse-dot 2s infinite;}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.8)}}
+.hero-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:62px;font-weight:900;line-height:1.04;letter-spacing:-2.5px;margin-bottom:18px;}
+.hero-word{display:inline-block;opacity:0;transform:translateY(36px);animation:word-up 0.5s ease forwards;}
+@keyframes word-up{to{opacity:1;transform:none;}}
+.accent{color:var(--accent);}
+.hero-subtitle{font-size:16px;color:var(--text-2);line-height:1.7;max-width:440px;margin-bottom:32px;opacity:0;animation:fade-up 0.5s ease 0.9s forwards;}
+.hero-btns{display:flex;align-items:center;gap:12px;opacity:0;animation:fade-up 0.5s ease 1.1s forwards;}
+@keyframes fade-up{to{opacity:1;transform:none;}}
+.btn-hero-primary{padding:13px 26px;border-radius:9999px;font-family:var(--font-sans);font-size:15px;font-weight:700;border:none;cursor:pointer;background:var(--accent);color:white;box-shadow:0 0 28px var(--accent-glow);transition:all 0.2s;}
+.btn-hero-primary:hover{background:var(--accent-2);transform:translateY(-2px);box-shadow:0 8px 36px var(--accent-glow);}
+.btn-hero-ghost{padding:13px 26px;border-radius:9999px;font-family:var(--font-sans);font-size:15px;font-weight:600;cursor:pointer;background:transparent;color:var(--text-2);border:1px solid var(--border-2);transition:all 0.2s;}
+.btn-hero-ghost:hover{color:var(--text);background:var(--surface);}
+
+/* ── HERO MOCKUP ── */
+.hero-mockup{background:var(--bg-3);border:1px solid var(--border-2);border-radius:18px;padding:18px;box-shadow:0 28px 70px rgba(0,0,0,0.5);}
+.mockup-bar{display:flex;align-items:center;gap:6px;margin-bottom:14px;}
+.mockup-dot{width:10px;height:10px;border-radius:50%;}
+.mockup-dot:nth-child(1){background:#ff5f57;} .mockup-dot:nth-child(2){background:#febc2e;} .mockup-dot:nth-child(3){background:#28c840;}
+.mockup-inner{background:var(--bg-2);border-radius:10px;padding:16px;}
+.mockup-prompt{background:var(--surface);border:1px solid var(--border-2);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:13px;color:var(--text-2);}
+.mockup-prompt strong{color:var(--text);}
+.mockup-code{background:#111;border-radius:8px;padding:12px;font-family:var(--font-mono);font-size:11px;line-height:1.6;color:#a8d5a2;overflow:hidden;max-height:180px;}
+.mockup-code .kw{color:#c678dd;} .mockup-code .fn{color:#61afef;} .mockup-code .str{color:#98c379;} .mockup-code .cm{color:#5c6370;}
+.mockup-badge{position:absolute;bottom:-14px;right:22px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:10px;padding:9px 14px;font-size:12px;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,0.4);}
+.mockup-badge-dot{width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0;animation:pulse-dot 1.5s infinite;}
+
+/* ── SECTIONS ── */
+.section{padding:90px 48px;max-width:1200px;margin:0 auto;}
+.section-tag{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-2);border-radius:9999px;padding:5px 14px;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:18px;text-transform:uppercase;letter-spacing:0.06em;}
+.section-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:46px;font-weight:800;letter-spacing:-1.5px;margin-bottom:10px;}
+
+/* ── TESTIMONIALS ── */
+.testimonials{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:44px;}
+.testimonial{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;transition:border-color 0.2s,transform 0.2s;}
+.testimonial:hover{border-color:var(--border-2);transform:translateY(-2px);}
+.testimonial-user{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.testimonial-avatar{width:34px;height:34px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--accent);}
+.testimonial-name{font-size:13px;font-weight:600;} .testimonial-handle{font-size:11px;color:var(--text-3);}
+.testimonial-text{font-size:13px;color:var(--text-2);line-height:1.6;}
+
+/* ── FEATURES ── */
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:44px;}
+.feature-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:24px;transition:border-color 0.2s,transform 0.2s;}
+.feature-card:hover{border-color:rgba(232,84,122,0.3);transform:translateY(-2px);}
+.feature-card.big{grid-column:span 2;}
+.feature-icon{font-size:26px;margin-bottom:12px;}
+.feature-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:17px;font-weight:700;margin-bottom:6px;}
+.feature-desc{font-size:13px;color:var(--text-2);line-height:1.6;}
+
+/* ── FAQ ── */
+.faq-list{margin-top:44px;display:flex;flex-direction:column;gap:4px;}
+.faq-item{background:var(--surface);border:1px solid var(--border);border-radius:11px;overflow:hidden;}
+.faq-question{padding:16px 22px;font-size:14px;font-weight:500;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background 0.15s;}
+.faq-question:hover{background:var(--surface-2);}
+.faq-chevron{font-size:11px;color:var(--text-3);transition:transform 0.2s;}
+.faq-answer{padding:0 22px;max-height:0;overflow:hidden;transition:max-height 0.3s ease,padding 0.3s ease;font-size:13px;color:var(--text-2);line-height:1.7;}
+.faq-item.open .faq-answer{max-height:200px;padding:0 22px 16px;}
+.faq-item.open .faq-chevron{transform:rotate(180deg);}
+
+/* ── PRICING ── */
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:44px;}
+.pricing-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:24px;display:flex;flex-direction:column;position:relative;}
+.pricing-card.featured{border-color:var(--accent);box-shadow:0 0 36px rgba(232,84,122,0.1);}
+.pricing-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--accent);color:white;font-size:10px;font-weight:800;padding:3px 14px;border-radius:9999px;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;}
+.pricing-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);margin-bottom:6px;}
+.pricing-price{font-family:'Plus Jakarta Sans',sans-serif;font-size:40px;font-weight:800;letter-spacing:-2px;margin-bottom:2px;}
+.pricing-period{font-size:13px;color:var(--text-3);margin-bottom:16px;}
+.pricing-divider{height:1px;background:var(--border);margin:16px 0;}
+.pricing-feature{font-size:13px;color:var(--text-2);padding:4px 0;display:flex;gap:8px;align-items:flex-start;}
+.pricing-feature::before{content:'✓';color:var(--accent);font-weight:800;flex-shrink:0;}
+.pricing-cta{margin-top:auto;padding-top:18px;}
+.btn-pricing{width:100%;padding:11px;border-radius:9px;font-family:var(--font-sans);font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all 0.15s;}
+.btn-pricing-primary{background:var(--accent);color:white;} .btn-pricing-primary:hover{background:var(--accent-2);}
+.btn-pricing-ghost{background:var(--surface-2);color:var(--text-2);} .btn-pricing-ghost:hover{color:var(--text);}
+
+/* ── FOOTER ── */
+.footer{border-top:1px solid var(--border);padding:36px 48px;display:flex;align-items:center;justify-content:space-between;}
+.footer-logo{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:700;letter-spacing:-0.3px;}
+.footer-logo img{width:22px;height:22px;border-radius:6px;object-fit:cover;}
+.footer-links{display:flex;gap:22px;}
+.footer-link{font-size:13px;color:var(--text-3);text-decoration:none;transition:color 0.15s;}
+.footer-link:hover{color:var(--text-2);}
+.footer-copy{font-size:12px;color:var(--text-3);}
+
+/* ── AUTH MODAL ── */
+.auth-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:2000;display:flex;align-items:center;justify-content:center;}
+.auth-modal{width:420px;background:var(--bg-2);border:1px solid var(--border-2);border-radius:22px;padding:38px;}
+.auth-modal-logo{text-align:center;margin-bottom:26px;}
+.auth-modal-icon{width:52px;height:52px;border-radius:14px;overflow:hidden;display:inline-block;margin-bottom:12px;box-shadow:0 0 24px var(--accent-glow);}
+.auth-modal-icon img{width:100%;height:100%;object-fit:cover;}
+.auth-modal-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:24px;font-weight:800;letter-spacing:-0.5px;}
+.auth-modal-sub{color:var(--text-2);font-size:14px;margin-top:4px;}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--text-3);font-size:12px;}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.form-group{margin-bottom:13px;}
+.form-label{display:block;font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;}
+.form-input{width:100%;background:var(--bg-3);border:1px solid var(--border-2);border-radius:9px;padding:10px 13px;color:var(--text);font-family:var(--font-sans);font-size:14px;outline:none;transition:border-color 0.15s;}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);}
+.form-input::placeholder{color:var(--text-3);}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 17px;border-radius:9px;font-family:var(--font-sans);font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all 0.15s;text-decoration:none;}
+.btn-primary{background:var(--accent);color:white;} .btn-primary:hover{background:var(--accent-2);}
+.btn-ghost{background:transparent;color:var(--text-2);border:1px solid var(--border-2);} .btn-ghost:hover{background:var(--surface-2);color:var(--text);}
+.btn-danger{background:rgba(248,113,113,0.1);color:var(--red);border:1px solid rgba(248,113,113,0.2);} .btn-danger:hover{background:rgba(248,113,113,0.2);}
+.btn-sm{padding:6px 12px;font-size:12px;} .btn-lg{padding:12px 22px;font-size:15px;} .btn-block{width:100%;justify-content:center;}
+
+/* ── APP ── */
+.app{display:flex;min-height:100vh;}
+.sidebar{width:200px;flex-shrink:0;background:var(--bg-2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;padding:14px 0;}
+.sidebar-logo{display:flex;align-items:center;gap:10px;padding:6px 14px 18px;border-bottom:1px solid var(--border);margin-bottom:6px;}
+.sidebar-logo-img{width:28px;height:28px;border-radius:8px;overflow:hidden;flex-shrink:0;}
+.sidebar-logo-img img{width:100%;height:100%;object-fit:cover;}
+.sidebar-logo-text{font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:800;}
+.sidebar-logo-beta{font-size:9px;font-weight:700;background:rgba(232,84,122,0.15);color:var(--accent);padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:0.05em;}
+.sidebar-new{margin:0 10px 10px;display:flex;align-items:center;gap:8px;padding:8px 13px;border-radius:8px;background:var(--surface);border:1px solid var(--border-2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;}
+.sidebar-new:hover{background:var(--surface-2);border-color:var(--accent);}
+.sidebar-section{font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);padding:10px 14px 4px;}
+.sidebar-item{display:flex;align-items:center;gap:8px;padding:8px 14px;color:var(--text-2);cursor:pointer;font-size:13px;font-weight:500;transition:all 0.12s;border-left:2px solid transparent;}
+.sidebar-item:hover{color:var(--text);background:rgba(255,255,255,0.04);}
+.sidebar-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(232,84,122,0.06);}
+.sidebar-item-icon{font-size:14px;width:16px;text-align:center;}
+.sidebar-footer{margin-top:auto;padding:10px;border-top:1px solid var(--border);}
+.sidebar-user{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:pointer;}
+.sidebar-user:hover{background:var(--surface);}
+.sidebar-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;flex-shrink:0;}
+.sidebar-user-email{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sidebar-user-plan{font-size:9px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;}
+.app-main{margin-left:200px;flex:1;min-height:100vh;position:relative;}
+
+/* ── BUILD / AGENT ── */
+.build-bg{position:fixed;left:200px;right:0;top:0;bottom:0;pointer-events:none;z-index:0;overflow:hidden;}
+.game-float{position:absolute;border-radius:14px;overflow:hidden;opacity:0.14;pointer-events:all;transition:opacity 0.4s ease,transform 0.4s cubic-bezier(0.34,1.4,0.64,1),box-shadow 0.3s ease;box-shadow:0 10px 36px rgba(0,0,0,0.5);cursor:default;}
+.game-float:hover{opacity:0.6;z-index:10;}
+.game-float-label{position:absolute;bottom:0;left:0;right:0;padding:7px 10px;background:linear-gradient(transparent,rgba(0,0,0,0.85));font-size:11px;font-weight:600;color:rgba(255,255,255,0.9);opacity:0;transition:opacity 0.2s;}
+.game-float:hover .game-float-label{opacity:1;}
+.build-chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px;}
+.build-chip{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-2);border-radius:9999px;padding:7px 14px;font-size:12px;font-weight:500;color:var(--text-2);cursor:pointer;transition:all 0.15s;}
+.build-chip:hover{border-color:var(--accent);color:var(--accent);background:rgba(232,84,122,0.05);}
+.build-chip-icon{font-size:14px;}
+.studio-pill{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--border-2);border-radius:9999px;padding:7px 16px;font-size:12px;display:flex;align-items:center;gap:8px;color:var(--text-2);box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:50;}
+.studio-pill-dot{width:6px;height:6px;border-radius:50%;background:#4ade80;animation:pulse-dot 1.5s infinite;}
+
+/* ── AGENT CHAT ── */
+@keyframes waveDot{0%,60%,100%{transform:translateY(0);opacity:0.4;}30%{transform:translateY(-4px);opacity:1;}}
+@keyframes typeWave{0%,60%,100%{transform:translateY(0);}30%{transform:translateY(-4px);}}
+@keyframes msg-in{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+@keyframes step-in{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:none;}}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes bounce-logo{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+/* ── MISC ── */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:9999px;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;}
+.badge-free{background:rgba(150,150,150,0.15);color:var(--text-3);}
+.badge-pro{background:rgba(232,84,122,0.15);color:var(--accent);}
+.badge-active{background:rgba(74,222,128,0.12);color:#4ade80;}
+.badge-error{background:rgba(248,113,113,0.12);color:var(--red);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:18px 22px;margin-bottom:14px;}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:22px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:16px;}
+.stat-label{font-size:10px;color:var(--text-3);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px;}
+.stat-value{font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:800;letter-spacing:-1px;}
+.stat-sub{font-size:11px;color:var(--text-3);margin-top:2px;}
+.progress-bar{height:3px;background:var(--bg-3);border-radius:9999px;overflow:hidden;margin-top:8px;}
+.progress-fill{height:100%;background:var(--accent);border-radius:9999px;transition:width 0.5s ease;}
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{text-align:left;padding:10px 13px;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);}
+tbody td{padding:12px 13px;border-bottom:1px solid var(--border);color:var(--text-2);}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:rgba(255,255,255,0.02);color:var(--text);}
+.toast{position:fixed;bottom:22px;right:22px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:11px;padding:11px 16px;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;gap:10px;animation:msg-in 0.2s ease;}
+.hidden{display:none!important;}
+@media(max-width:768px){.sidebar{display:none;}.app-main{margin-left:0;}.hero-grid{grid-template-columns:1fr;}.hero-title{font-size:42px;}.features-grid{grid-template-columns:1fr;}.feature-card.big{grid-column:span 1;}.testimonials,.pricing-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<!-- ════════ LANDING PAGE ════════ -->
+<div id="landingPage">
+  <nav class="nav">
+    <a class="nav-logo" href="#">
+      <div class="nav-logo-img"><img src="./lychee-ai-logo.png" alt="Lychee AI"/></div>
+      <span class="nav-logo-text">Lychee AI</span>
+    </a>
+    <div class="nav-links">
+      <a class="nav-link" href="#features">Features</a>
+      <a class="nav-link" href="#pricing">Pricing</a>
+      <a class="nav-link" href="#faq">FAQ</a>
+    </div>
+    <div class="nav-right">
+      <button class="btn-nav btn-nav-ghost" onclick="showAuth('login')">Sign in</button>
+      <button class="btn-nav btn-nav-primary" onclick="handleStartScripting()">Dashboard</button>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-grid">
+      <div>
+        <div class="hero-tag"><div class="hero-tag-dot"></div> Now in beta</div>
+        <h1 class="hero-title">
+          <span class="hero-word" style="animation-delay:0.15s">The</span>
+          <span class="hero-word" style="animation-delay:0.25s"> AI</span>
+          <span class="hero-word" style="animation-delay:0.35s"> that</span><br>
+          <span class="hero-word" style="animation-delay:0.45s">codes</span>
+          <span class="hero-word" style="animation-delay:0.55s"> your</span><br>
+          <span class="hero-word accent" style="animation-delay:0.65s">Roblox</span>
+          <span class="hero-word accent" style="animation-delay:0.75s"> game</span>
+        </h1>
+        <p class="hero-subtitle">Describe what you want built. Lychee AI generates complete Luau code and drops it directly into Roblox Studio — no copy-paste, no setup.</p>
+        <div class="hero-btns">
+          <button class="btn-hero-primary" onclick="handleStartScripting()">Start Scripting →</button>
+          <button class="btn-hero-ghost">Watch Demo</button>
+        </div>
+      </div>
+      <div class="reveal-right" style="position:relative;">
+        <div class="hero-mockup">
+          <div class="mockup-bar"><div class="mockup-dot"></div><div class="mockup-dot"></div><div class="mockup-dot"></div></div>
+          <div class="mockup-inner">
+            <div class="mockup-prompt"><strong>Make a sword tool</strong> with damage, swing animation, and kill tracking</div>
+            <div class="mockup-code"><span class="cm">-- SwordTool | Generated by Lychee AI</span>
+<span class="kw">local</span> tool = Instance.<span class="fn">new</span>(<span class="str">"Tool"</span>)
+tool.Name = <span class="str">"LycheeSword"</span>
+tool.RequiresHandle = <span class="kw">true</span>
+<span class="kw">local</span> handle = Instance.<span class="fn">new</span>(<span class="str">"Part"</span>)
+handle.Name = <span class="str">"Handle"</span>
+handle.Size = Vector3.<span class="fn">new</span>(0.3, 3.5, 0.3)
+handle.BrickColor = BrickColor.<span class="fn">new</span>(<span class="str">"Silver"</span>)
+handle.Parent = tool
+<span class="kw">local</span> kills = 0
+tool.Activated:Connect(<span class="kw">function</span>()
+  kills = kills + 1
+<span class="kw">end</span>)
+tool.Parent = game:GetService(<span class="str">"StarterPack"</span>)</div>
+          </div>
+        </div>
+        <div class="mockup-badge"><div class="mockup-badge-dot"></div><span style="font-size:12px;color:#a0a0a0">Inserted into <strong style="color:#f0f0f0">StarterPack</strong></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TESTIMONIALS -->
+  <div style="border-top:1px solid var(--border);padding:80px 48px;">
+    <div style="max-width:1200px;margin:0 auto;">
+      <h2 style="font-family:'Plus Jakarta Sans',sans-serif;font-size:42px;font-weight:800;letter-spacing:-1.5px;text-align:center;margin-bottom:44px;" class="reveal">Don't take our word for it</h2>
+      <div class="testimonials">
+        <div class="testimonial reveal reveal-delay-1"><div class="testimonial-user"><div class="testimonial-avatar">R</div><div><div class="testimonial-name">RblxDevKing</div><div class="testimonial-handle">@rblxdevking</div></div></div><div class="testimonial-text">Lychee AI dropped a complete shop GUI into my game in seconds. Biggest time saver I've ever used.</div></div>
+        <div class="testimonial reveal reveal-delay-2"><div class="testimonial-user"><div class="testimonial-avatar">V</div><div><div class="testimonial-name">Voixcyy</div><div class="testimonial-handle">@voixcyy</div></div></div><div class="testimonial-text">It auto-selects the right service and script type. I just describe what I want and it appears in Studio. Insane.</div></div>
+        <div class="testimonial reveal reveal-delay-3"><div class="testimonial-user"><div class="testimonial-avatar">S</div><div><div class="testimonial-name">StudioPro99</div><div class="testimonial-handle">@studiopro99</div></div></div><div class="testimonial-text">Built an entire round-based game system in one afternoon. The code quality is actually production ready.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section class="section" id="features">
+    <div style="text-align:center;margin-bottom:44px;">
+      <span class="section-tag reveal">✦ Features</span>
+      <h2 class="section-title reveal">We handle the hard stuff</h2>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card big reveal reveal-delay-1"><div class="feature-icon">⚡</div><div class="feature-title">No More Copy-Pasting</div><div class="feature-desc">Scripts appear directly in Roblox Studio the moment Lychee AI generates them. The plugin polls every 3 seconds and inserts everything automatically.</div></div>
+      <div class="feature-card reveal reveal-delay-2"><div class="feature-icon">🧠</div><div class="feature-title">Smart Location Detection</div><div class="feature-desc">GUI → StarterGui. Weapons → StarterPack. Server logic → ServerScriptService. You never have to choose.</div></div>
+      <div class="feature-card reveal reveal-delay-3"><div class="feature-icon">🎮</div><div class="feature-title">Complete Systems</div><div class="feature-desc">Ask for a full feature and get multiple scripts across multiple services in one request.</div></div>
+      <div class="feature-card reveal reveal-delay-4"><div class="feature-icon">🔄</div><div class="feature-title">Smart Updates</div><div class="feature-desc">Already have a script? Lychee AI finds it by name and updates it in place instead of creating a duplicate.</div></div>
+      <div class="feature-card reveal reveal-delay-5"><div class="feature-icon">🛡️</div><div class="feature-title">Production Quality</div><div class="feature-desc">Every script includes error handling with pcall, clean comments, and follows Roblox best practices.</div></div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="section" id="pricing" style="border-top:1px solid var(--border);">
+    <div style="text-align:center;margin-bottom:44px;"><span class="section-tag reveal">💎 Pricing</span><h2 class="section-title reveal">Simple, honest pricing</h2></div>
+    <div class="pricing-grid">
+      <div class="pricing-card reveal reveal-delay-1"><div class="pricing-name">Free</div><div class="pricing-price">$0</div><div class="pricing-period">forever</div><div class="pricing-divider"></div><div class="pricing-feature">20 generations / day</div><div class="pricing-feature">100 / month</div><div class="pricing-feature">All script types</div><div class="pricing-cta"><button class="btn-pricing btn-pricing-ghost" onclick="showAuth('register')">Get started free</button></div></div>
+      <div class="pricing-card featured reveal reveal-delay-2"><div class="pricing-badge">Most Popular</div><div class="pricing-name">Pro</div><div class="pricing-price" style="color:var(--accent)">$19</div><div class="pricing-period">per month</div><div class="pricing-divider"></div><div class="pricing-feature">200 generations / day</div><div class="pricing-feature">5,000 / month</div><div class="pricing-feature">Multi-script systems</div><div class="pricing-feature">Priority responses</div><div class="pricing-cta"><button class="btn-pricing btn-pricing-primary" onclick="showAuth('register')">Start Pro</button></div></div>
+      <div class="pricing-card reveal reveal-delay-3"><div class="pricing-name">Team</div><div class="pricing-price">$49</div><div class="pricing-period">per month</div><div class="pricing-divider"></div><div class="pricing-feature">1,000 / day</div><div class="pricing-feature">25,000 / month</div><div class="pricing-feature">Team workspace</div><div class="pricing-cta"><button class="btn-pricing btn-pricing-ghost" onclick="showAuth('register')">Start Team</button></div></div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section" id="faq" style="border-top:1px solid var(--border);">
+    <div style="text-align:center;margin-bottom:44px;"><span class="section-tag reveal">💬 FAQ</span><h2 class="section-title reveal">Frequently Asked</h2></div>
+    <div class="faq-list" style="max-width:680px;margin:0 auto;">
+      <div class="faq-item reveal"><div class="faq-question" onclick="toggleFaq(this)">Is Lychee AI allowed on Roblox? <span class="faq-chevron">▼</span></div><div class="faq-answer">Yes — Lychee AI generates Luau code that you own and publish. We don't interact with Roblox's servers directly.</div></div>
+      <div class="faq-item reveal"><div class="faq-question" onclick="toggleFaq(this)">How does the Studio sync work? <span class="faq-chevron">▼</span></div><div class="faq-answer">Install the free Lychee AI plugin in Roblox Studio. When you generate code on the website, the plugin picks it up automatically every 3 seconds and inserts it into the right location.</div></div>
+      <div class="faq-item reveal"><div class="faq-question" onclick="toggleFaq(this)">What kind of code can it generate? <span class="faq-chevron">▼</span></div><div class="faq-answer">Anything — combat systems, GUIs, DataStore, round systems, tools, NPCs, leaderboards, animations, and more.</div></div>
+      <div class="faq-item reveal"><div class="faq-question" onclick="toggleFaq(this)">How is this different from Roblox Studio Assistant? <span class="faq-chevron">▼</span></div><div class="faq-answer">Roblox Studio Assistant gives suggestions inside the editor. Lychee AI generates complete, working systems and automatically places them in the right services — no copy-paste required.</div></div>
+      <div class="faq-item reveal"><div class="faq-question" onclick="toggleFaq(this)">Can I cancel my subscription? <span class="faq-chevron">▼</span></div><div class="faq-answer">Yes, cancel anytime from your billing page. You keep Pro access until the end of your billing period.</div></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-logo"><img src="./lychee-ai-logo.png" alt=""/> Lychee AI</div>
+    <div class="footer-links"><a class="footer-link" href="#">Privacy</a><a class="footer-link" href="#">Terms</a><a class="footer-link" href="#">Discord</a><a class="footer-link" href="#">Twitter</a></div>
+    <div class="footer-copy">© 2025 Lychee AI. All rights reserved.</div>
+  </footer>
+</div>
+
+<!-- ════════ AUTH MODAL ════════ -->
+<div id="authOverlay" class="auth-overlay hidden">
+  <div class="auth-modal" onclick="event.stopPropagation()">
+    <div class="auth-modal-logo">
+      <div class="auth-modal-icon"><img src="./lychee-ai-logo.png" alt="Lychee AI"/></div>
+      <div class="auth-modal-title">Lychee AI</div>
+      <div class="auth-modal-sub">Gemini-powered Roblox coding assistant</div>
+    </div>
+    <div id="loginForm">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="loginEmail" placeholder="you@example.com"/></div>
+      <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <div id="loginError" style="color:var(--red);font-size:13px;margin-bottom:10px;display:none;"></div>
+      <button class="btn btn-primary btn-block btn-lg" style="margin-bottom:10px;" onclick="doLogin()">Sign In</button>
+      <div class="auth-divider">or</div>
+      <button class="btn btn-ghost btn-block" onclick="showAuth('register')">Create an account</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:6px;" onclick="hideAuth()">← Back</button>
+    </div>
+    <div id="registerForm" class="hidden">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="regEmail" placeholder="you@example.com"/></div>
+      <div class="form-group"><label class="form-label">Username</label><input class="form-input" type="text" id="regUsername" placeholder="yourname"/></div>
+      <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="regPassword" placeholder="Min 8 characters"/></div>
+      <div id="regError" style="color:var(--red);font-size:13px;margin-bottom:10px;display:none;"></div>
+      <button class="btn btn-primary btn-block btn-lg" style="margin-bottom:10px;" onclick="doRegister()">Create Account</button>
+      <div class="auth-divider">or</div>
+      <button class="btn btn-ghost btn-block" onclick="showAuth('login')">Sign in instead</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:6px;" onclick="hideAuth()">← Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ APP ════════ -->
+<div id="appPage" class="hidden">
+  <!-- Profile dropdown menu -->
+  <div id="profileMenu" style="display:none;position:fixed;top:52px;right:16px;z-index:2000;background:var(--bg-2);border:1px solid var(--border-2);border-radius:14px;padding:8px;min-width:200px;box-shadow:0 16px 48px rgba(0,0,0,0.5);animation:msg-in 0.15s ease;">
+    <div id="profileMenuName" style="padding:8px 10px 10px;font-size:13px;font-weight:600;color:var(--text-2);border-bottom:1px solid var(--border);margin-bottom:6px;"></div>
+    <div onclick="navigate('usage')" class="pmenu-item">📊 Usage</div>
+    <div onclick="navigate('billing')" class="pmenu-item">💎 Billing</div>
+    <div onclick="navigate('settings')" class="pmenu-item">⚙️ Manage Account</div>
+    <div style="height:1px;background:var(--border);margin:6px 0;"></div>
+    <div onclick="doLogout()" class="pmenu-item" style="color:var(--red);">→ Log Out</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;height:100vh;">
+    <!-- Top bar -->
+    <div style="height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:var(--bg-2);border-bottom:1px solid var(--border);z-index:100;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:24px;height:24px;border-radius:7px;overflow:hidden;flex-shrink:0;"><img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/></div>
+        <span id="topProjectName" style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:-0.2px;transition:opacity 0.2s;">Lychee</span>
+        <span id="topBeta" style="font-size:10px;font-weight:600;color:var(--text-3);padding:2px 6px;border-radius:4px;background:var(--surface);transition:opacity 0.2s;">beta</span>
+      </div>
+      <div id="topAvatar" onclick="toggleProfileMenu()" style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;cursor:pointer;transition:opacity 0.15s;user-select:none;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">?</div>
+    </div>
+
+    <!-- Main content -->
+    <div style="flex:1;display:flex;overflow:hidden;">
+      <main id="mainContent" style="flex:1;overflow:hidden;display:flex;flex-direction:column;"></main>
+    </div>
+  </div>
+</div>
+
+<style>
+.pmenu-item{padding:8px 10px;border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer;transition:background 0.12s;}
+.pmenu-item:hover{background:var(--surface);color:var(--text);}
+</style>
+
+<script>
+const API = 'https://lime-ai-tmy2.onrender.com/api/v1';
+let state = {
+  accessToken: localStorage.getItem('accessToken'),
+  refreshToken: localStorage.getItem('refreshToken'),
+  user: null, currentPage: 'build',
 };
 
-// ═══════════════════════════════════════════════════
-// HEALTH CHECK
-// ═══════════════════════════════════════════════════
-router.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+// ── AUTH ──
+function showAuth(type) {
+  document.getElementById('authOverlay').classList.remove('hidden');
+  if (type === 'login') {
+    document.getElementById('loginForm').classList.remove('hidden');
+    document.getElementById('registerForm').classList.add('hidden');
+  } else {
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('registerForm').classList.remove('hidden');
+  }
+}
+function hideAuth() { document.getElementById('authOverlay').classList.add('hidden'); }
+document.getElementById('authOverlay').addEventListener('click', function(e) { if (e.target === this) hideAuth(); });
 
-// ═══════════════════════════════════════════════════
-// AUTH ROUTES
-// ═══════════════════════════════════════════════════
-const registerSchema = z.object({
-  email: z.string().email().max(255),
-  password: z.string().min(8).max(128),
-  username: z.string().min(3).max(50).optional(),
-});
+function handleStartScripting() {
+  if (state.accessToken) {
+    document.getElementById('landingPage').style.display = 'none';
+    initApp();
+  } else {
+    showAuth('register');
+  }
+}
 
-router.post('/auth/register', authRateLimit, async (req, res) => {
-  if (!validate(registerSchema, req.body, res)) return;
-  try {
-    const { userId, verifyToken } = await registerUser(
-      req.body.email, req.body.password, req.body.username
-    );
-    logger.info('User registered', { userId });
-    res.status(201).json({ message: 'Account created. Check your email to verify.' });
-  } catch (err: unknown) {
-    const e = err as { code?: string; message?: string };
-    if (e.code === 'EMAIL_EXISTS') res.status(409).json({ error: 'Email already registered' });
-    else { logger.error('Registration error', err); res.status(500).json({ error: 'Registration failed' }); }
+async function api(method, path, body) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(state.accessToken ? { Authorization: `Bearer ${state.accessToken}` } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  };
+  let res = await fetch(API + path, opts);
+  if (res.status === 401 && state.refreshToken) {
+    const r = await fetch(API + '/auth/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: state.refreshToken }) });
+    if (r.ok) {
+      const tokens = await r.json();
+      state.accessToken = tokens.accessToken; state.refreshToken = tokens.refreshToken;
+      localStorage.setItem('accessToken', tokens.accessToken); localStorage.setItem('refreshToken', tokens.refreshToken);
+      opts.headers.Authorization = `Bearer ${tokens.accessToken}`;
+      res = await fetch(API + path, opts);
+    } else { doLogout(); return null; }
+  }
+  return res.json().catch(() => null);
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  const result = await fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }).then(r => r.json()).catch(() => null);
+  if (!result?.accessToken) { errEl.textContent = result?.error || 'Login failed'; errEl.style.display = 'block'; return; }
+  state.accessToken = result.accessToken; state.refreshToken = result.refreshToken;
+  localStorage.setItem('accessToken', result.accessToken); localStorage.setItem('refreshToken', result.refreshToken);
+  hideAuth();
+  document.getElementById('landingPage').style.display = 'none';
+  initApp();
+}
+
+async function doRegister() {
+  const email = document.getElementById('regEmail').value;
+  const username = document.getElementById('regUsername').value;
+  const password = document.getElementById('regPassword').value;
+  const errEl = document.getElementById('regError');
+  errEl.style.display = 'none';
+  const result = await fetch(API + '/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, username, password }) }).then(r => r.json()).catch(() => null);
+  if (result?.error) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
+  toast('Account created! Sign in to continue.'); showAuth('login');
+}
+
+function doLogout() {
+  api('POST', '/auth/logout', { refreshToken: state.refreshToken });
+  state.accessToken = null; state.refreshToken = null; state.user = null;
+  localStorage.removeItem('accessToken'); localStorage.removeItem('refreshToken');
+  document.getElementById('appPage').classList.add('hidden');
+  document.getElementById('landingPage').style.display = 'block';
+}
+
+async function initApp() {
+  document.getElementById('appPage').classList.remove('hidden');
+  document.getElementById('mainContent').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:16px;">
+      <div style="width:48px;height:48px;border-radius:14px;overflow:hidden;animation:bounce-logo 1s ease-in-out infinite;">
+        <img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/>
+      </div>
+      <div style="font-size:13px;color:var(--text-3);">Loading your workspace...</div>
+    </div>`;
+  state.user = await api('GET', '/user/me');
+  if (!state.user) { doLogout(); return; }
+  const initials = (state.user.display_name || state.user.email || '?').slice(0, 2).toUpperCase();
+  const avatar = document.getElementById('topAvatar');
+  if (avatar) avatar.textContent = initials;
+  const nameEl = document.getElementById('profileMenuName');
+  if (nameEl) nameEl.textContent = state.user.email;
+  // Check URL for initial page
+  const urlPage = window.location.pathname.split('/dashboard/')[1] || 'build';
+  const validPages = ['build','usage','billing','settings','admin','history'];
+  navigate(validPages.includes(urlPage) ? urlPage : 'build');
+}
+
+function toggleProfileMenu() {
+  const menu = document.getElementById('profileMenu');
+  if (!menu) return;
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('profileMenu');
+  const avatar = document.getElementById('topAvatar');
+  if (menu && menu.style.display !== 'none' && !menu.contains(e.target) && e.target !== avatar) {
+    menu.style.display = 'none';
   }
 });
 
-router.post('/auth/login', authRateLimit, async (req, res) => {
-  const schema = z.object({ email: z.string().email(), password: z.string() });
-  if (!validate(schema, req.body, res)) return;
-  try {
-    const tokens = await loginUser(
-      req.body.email, req.body.password,
-      req.ip || '', req.headers['user-agent'] || ''
-    );
-    res.json(tokens);
-  } catch (err: unknown) {
-    const e = err as { code?: string };
-    if (e.code === 'INVALID_CREDENTIALS') res.status(401).json({ error: 'Invalid email or password' });
-    else if (e.code === 'BANNED') res.status(403).json({ error: 'Account suspended' });
-    else { logger.error('Login error', err); res.status(500).json({ error: 'Login failed' }); }
+function navigate(page) {
+  state.currentPage = page;
+  if (page !== 'build') stopPluginCheck();
+  const menu = document.getElementById('profileMenu');
+  if (menu) menu.style.display = 'none';
+  const pages = { build: renderBuild, usage: renderUsage, history: renderHistory, billing: renderBilling, settings: renderSettings, admin: renderAdmin };
+  pages[page]?.();
+  const pn = document.getElementById('topProjectName');
+  if (page === 'build') {
+    updateTopBarProject(false);
+    history.pushState({ page }, '', '/dashboard');
+  } else {
+    if (pn) { pn.textContent = page.charAt(0).toUpperCase() + page.slice(1); pn.style.fontSize='14px'; pn.style.fontWeight='500'; pn.style.opacity='1'; pn.style.transform='none'; }
+    history.pushState({ page }, '', '/dashboard/' + page);
   }
+}
+
+window.addEventListener('popstate', (e) => {
+  const page = e.state?.page || 'build';
+  state.currentPage = page;
+  const pages = { build: renderBuild, usage: renderUsage, history: renderHistory, billing: renderBilling, settings: renderSettings, admin: renderAdmin };
+  pages[page]?.();
 });
 
-router.post('/auth/refresh', async (req, res) => {
-  const { refreshToken } = req.body;
-  if (!refreshToken) { res.status(400).json({ error: 'Refresh token required' }); return; }
-  try {
-    const tokens = await refreshTokens(refreshToken, req.ip || '');
-    res.json(tokens);
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired refresh token' });
+function toggleFaq(el) {
+  const item = el.parentElement;
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+  if (!isOpen) item.classList.add('open');
+}
+
+// ── PROJECTS STATE ──
+let projects = JSON.parse(localStorage.getItem('lychee_projects') || '[]');
+let currentProjectId = null;
+
+function saveProjects() { localStorage.setItem('lychee_projects', JSON.stringify(projects)); }
+
+function createProject(name) {
+  const id = 'proj_' + Date.now();
+  const proj = { id, name: name || 'New Project', messages: [], createdAt: new Date().toISOString() };
+  projects.unshift(proj);
+  saveProjects();
+  return proj;
+}
+
+function getProject(id) { return projects.find(p => p.id === id); }
+
+function deleteProject(id) {
+  projects = projects.filter(p => p.id !== id);
+  saveProjects();
+  if (currentProjectId === id) {
+    currentProjectId = null;
+    renderBuild();
+  } else {
+    renderProjectsList();
   }
-});
+}
 
-router.post('/auth/logout', requireAuth, async (req, res) => {
-  const { refreshToken } = req.body;
-  if (refreshToken) await revokeRefreshToken(refreshToken);
-  res.json({ message: 'Logged out' });
-});
+// ── AGENT BUILD PAGE ──
+async function renderBuild() {
+  const c = document.getElementById('mainContent');
+  c.innerHTML = `
+    <div class="build-bg" id="buildBg"></div>
+    <div style="display:flex;height:100%;position:relative;z-index:1;overflow:hidden;">
 
-router.get('/auth/verify-email', async (req, res) => {
-  const { token } = req.query;
-  if (!token || typeof token !== 'string') { res.status(400).json({ error: 'Token required' }); return; }
-  try {
-    await verifyEmail(token);
-    res.json({ message: 'Email verified successfully' });
-  } catch {
-    res.status(400).json({ error: 'Invalid or expired verification token' });
-  }
-});
+      <!-- Projects sidebar exactly like ref 3 -->
+      <div id="projectsSidebar" style="width:190px;flex-shrink:0;border-right:1px solid var(--border);background:var(--bg-2);display:flex;flex-direction:column;">
+        <div style="padding:12px 10px 10px;">
+          <button onclick="startNewProject()" class="shine-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 14px;border-radius:9999px;background:white;border:none;color:#111;font-family:var(--font-sans);font-size:14px;font-weight:700;cursor:pointer;letter-spacing:0.01em;transition:background 0.15s;" onmouseover="this.style.background='#ececec'" onmouseout="this.style.background='white'">
+            <span style="font-size:18px;line-height:1;font-weight:400;margin-top:-1px;">+</span> New Project
+          </button>
+        </div>
+        <div style="padding:8px 10px 5px;font-size:11px;font-weight:400;color:var(--text-3);letter-spacing:0.02em;">Projects</div>
+        <div id="projectsList" style="flex:1;overflow-y:auto;padding:0 6px 10px;"></div>
+        <!-- Discord footer -->
+        <div style="padding:8px;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#7289da"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.01.1.058.19.13.245a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);">Discord</div>
+              <div style="font-size:10px;color:var(--text-3);">Join for gifts</div>
+            </div>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2.5" style="margin-left:auto;"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </div>
+      </div>
 
-// ═══════════════════════════════════════════════════
-// USER PROFILE
-// ═══════════════════════════════════════════════════
-router.get('/user/me', requireAuth, async (req, res) => {
-  const { rows } = await db.query(
-    `SELECT u.id, u.email, u.username, u.display_name, u.roblox_username,
-            u.avatar_url, u.email_verified, u.created_at,
-            sp.name AS plan_name, sp.display_name AS plan_display_name,
-            sp.requests_per_day, sp.requests_per_month, sp.features,
-            sub.status AS subscription_status, sub.current_period_end
-     FROM users u
-     LEFT JOIN subscription_plans sp ON u.plan_id = sp.id
-     LEFT JOIN subscriptions sub ON sub.user_id = u.id AND sub.status = 'active'
-     WHERE u.id = $1`,
-    [req.user!.sub]
-  );
-  if (rows.length === 0) { res.status(404).json({ error: 'User not found' }); return; }
-  res.json(rows[0]);
-});
+      <!-- Main chat area -->
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;min-width:0;">
 
-router.patch('/user/me', requireAuth, async (req, res) => {
-  const schema = z.object({
-    displayName: z.string().max(100).optional(),
-    robloxUsername: z.string().max(50).optional(),
+        <!-- Messages (hidden until first message) -->
+        <div id="agentMessages" style="flex:1;overflow-y:auto;display:none;flex-direction:column;">
+          <div id="msgList" style="padding:20px 28px;display:flex;flex-direction:column;gap:12px;"></div>
+        </div>
+
+        <!-- Welcome screen — full area with input in middle -->
+        <div id="agentWelcome" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;">
+          <h1 id="agentTitle" style="font-family:'Plus Jakarta Sans',sans-serif;font-size:28px;font-weight:800;margin-bottom:6px;opacity:0;transform:translateY(16px);transition:all 0.5s ease;">Describe a <em style="font-family:'Caveat',cursive;font-style:normal;font-size:36px;font-weight:700;color:var(--accent);">game mechanic...</em></h1>
+          <p id="agentSub" style="font-size:14px;color:var(--text-3);margin-bottom:20px;opacity:0;transition:all 0.5s ease 0.15s;">Lychee AI will code it and insert it directly into your Studio</p>
+
+          <!-- Input in middle -->
+          <div id="agentInputWrapCenter" style="width:100%;max-width:680px;background:var(--surface);border:1px solid var(--border-2);border-radius:16px;padding:12px 14px;display:flex;align-items:flex-end;gap:10px;box-shadow:0 8px 40px rgba(0,0,0,0.4);opacity:0;transition:all 0.5s ease 0.25s;margin-bottom:10px;">
+            <textarea id="agentInput" rows="1"
+              style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;resize:none;max-height:140px;line-height:1.6;"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessage()}"
+              oninput="autoResize(this);onAgentInput(this)"
+              onfocus="onAgentFocus()" onblur="onAgentBlur()"></textarea>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+              <button onclick="sendAgentMessage()" id="agentSendBtn"
+                style="width:34px;height:34px;border-radius:9px;background:var(--surface-2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text-3);transition:all 0.2s;">➤</button>
+            </div>
+          </div>
+
+          <!-- Footer row below center input -->
+          <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:24px;opacity:0;transition:all 0.4s ease 0.35s;" id="centerFooter">
+            <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);">
+              <div style="width:5px;height:5px;border-radius:50%;background:#4ade80;animation:pulse-dot 1.5s infinite;"></div>
+              Studio plugin must be running
+            </div>
+            <div style="font-size:11px;color:var(--text-3);">·</div>
+            <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);">
+              <svg width="12" height="12" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Gemini 3.5 Flash
+            </div>
+          </div>
+
+          <div class="build-chips" id="agentChips" style="opacity:0;transition:all 0.4s ease 0.4s;">
+            <div class="build-chip" onclick="setAgentPrompt('Make a combat system with sword, damage and kill counter')"><span class="build-chip-icon">⚔️</span> Combat system</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a shop GUI with currency display and buy buttons')"><span class="build-chip-icon">🛍️</span> Shop GUI</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a round system with lobby, countdown and winner screen')"><span class="build-chip-icon">🎮</span> Round system</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a leaderboard that saves stats with DataStore')"><span class="build-chip-icon">🏆</span> Leaderboard</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a pet system where players can collect and equip pets')"><span class="build-chip-icon">🐾</span> Pet system</div>
+            <div class="build-chip" onclick="setAgentPrompt('Make a gun with shooting, reload and bullet spread')"><span class="build-chip-icon">🔫</span> Gun system</div>
+          </div>
+        </div>
+
+        <!-- Docked input bar (after first message) -->
+        <div id="agentInputBar" style="display:none;flex-shrink:0;padding:12px 20px 14px;border-top:1px solid var(--border);background:var(--bg-2);position:relative;">
+
+          <!-- Connect plugin tooltip (shown when disconnected) -->
+          <div id="pluginTooltip" style="display:none;position:absolute;top:-122px;left:50%;transform:translateX(-50%);background:var(--bg-3);border:1px solid rgba(248,113,113,0.3);border-radius:12px;padding:14px 16px;width:290px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:100;animation:msg-in 0.2s ease;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <!-- Animated wave dots -->
+                <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
+                  <div class="wave-dot" style="width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:waveDot 1.2s ease-in-out infinite;animation-delay:0s;"></div>
+                  <div class="wave-dot" style="width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:waveDot 1.2s ease-in-out infinite;animation-delay:0.2s;"></div>
+                  <div class="wave-dot" style="width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:waveDot 1.2s ease-in-out infinite;animation-delay:0.4s;"></div>
+                </div>
+                <div style="font-size:13px;font-weight:700;color:var(--text);">Connect plugin</div>
+              </div>
+              <button onclick="document.getElementById('pluginTooltip').style.display='none'" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:15px;line-height:1;flex-shrink:0;padding:0;">✕</button>
+            </div>
+            <div style="font-size:12px;color:var(--text-2);line-height:1.5;margin-top:6px;">You must first install and connect the Lychee AI plugin on Roblox Studio.</div>
+            <a href="https://create.roblox.com/store/asset/89065588962229/Lychee-AI-Coding-Assistant-for-Roblox-Studio" target="_blank" style="display:block;margin-top:10px;padding:9px;background:white;color:#111;border-radius:8px;font-size:13px;font-weight:600;text-align:center;text-decoration:none;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Install</a>
+            <!-- Arrow pointing down -->
+            <div style="position:absolute;bottom:-6px;left:50%;width:10px;height:10px;background:var(--bg-3);border-right:1px solid rgba(248,113,113,0.3);border-bottom:1px solid rgba(248,113,113,0.3);transform:translateX(-50%) rotate(45deg);"></div>
+          </div>
+
+          <div id="agentInputWrapDocked" style="max-width:720px;margin:0 auto;background:var(--surface);border:1.5px solid var(--border-2);border-radius:14px;overflow:hidden;transition:border-color 0.3s;">
+            <!-- Top area - text input -->
+            <div style="padding:14px 16px 10px;background:var(--surface);">
+              <textarea id="agentInputDocked" rows="3"
+                style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-sans);font-size:14px;font-weight:500;resize:none;min-height:60px;max-height:180px;line-height:1.7;"
+                placeholder="Connect the Lychee AI plugin in Roblox Studio first"
+                disabled
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessageDocked()}"
+                oninput="autoResize(this);onDockedInput(this)"
+                onfocus="onDockedFocus()" onblur="onDockedBlur()"></textarea>
+            </div>
+            <!-- Bottom bar - slightly darker -->
+            <div style="padding:8px 12px;background:var(--bg-3);display:flex;align-items:center;gap:6px;border-top:1px solid var(--border);">
+              <!-- Left buttons -->
+              <button style="width:28px;height:28px;border-radius:6px;background:transparent;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:background 0.15s;font-size:14px;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'" title="Mention">@</button>
+              <button style="width:28px;height:28px;border-radius:6px;background:transparent;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:background 0.15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'" title="Image">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              </button>
+              <div style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;background:transparent;border:none;cursor:pointer;color:var(--text-2);font-size:12px;font-weight:500;transition:background 0.15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'">
+                Custom
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+              <div style="flex:1;"></div>
+              <!-- Right: Gemini badge + send -->
+              <div style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;background:var(--surface-2);border:none;cursor:pointer;font-size:12px;color:var(--text-2);font-weight:500;transition:background 0.15s;" onmouseover="this.style.background='var(--bg-3)'" onmouseout="this.style.background='var(--surface-2)'">
+                <svg width="12" height="12" viewBox="0 0 24 24" style="flex-shrink:0;"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                Gemini 3.5 Flash
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+              <button id="agentSendBtnDocked" onclick="sendAgentMessageDocked()"
+                style="width:30px;height:30px;border-radius:6px;background:var(--surface-2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:all 0.2s;flex-shrink:0;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>`;
+
+  // Entrance animation
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      ['agentTitle','agentSub','agentInputWrapCenter','agentChips','centerFooter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.opacity = '1';
+        if (id === 'agentTitle') el.style.transform = 'none';
+      });
+    }, 80);
   });
-  if (!validate(schema, req.body, res)) return;
-  const { displayName, robloxUsername } = req.body;
-  await db.query(
-    `UPDATE users SET display_name = COALESCE($1, display_name),
-       roblox_username = COALESCE($2, roblox_username),
-       updated_at = NOW()
-     WHERE id = $3`,
-    [displayName, robloxUsername, req.user!.sub]
-  );
-  res.json({ message: 'Profile updated' });
-});
 
-// ═══════════════════════════════════════════════════
-// CHAT / AI ROUTES
-// ═══════════════════════════════════════════════════
-router.post('/chat', requireAuth, checkBanned, planUsageLimit, async (req, res) => {
-  const schema = z.object({
-    message: z.string().min(1).max(32000),
-    conversationId: z.string().uuid().optional(),
-    stream: z.boolean().optional().default(false),
-  });
-  if (!validate(schema, req.body, res)) return;
+  renderProjectsList();
+  welcomeHidden = false;
+  startPlaceholderCycle();
+  spawnGameCards();
 
-  const { message, conversationId: rawConvId, stream } = req.body;
-  const userId = req.user!.sub;
-  const planName = req.user!.plan;
-
-  const { rows: planRows } = await db.query<{ max_tokens_per_request: number; requests_per_day: number; requests_per_month: number }>(
-    `SELECT sp.max_tokens_per_request, sp.requests_per_day, sp.requests_per_month
-     FROM users u JOIN subscription_plans sp ON u.plan_id = sp.id WHERE u.id = $1`,
-    [userId]
-  );
-  const plan = planRows[0] ?? { max_tokens_per_request: 2048, requests_per_day: 20, requests_per_month: 100 };
-
-  try {
-    const conversationId = await ensureConversation(userId, rawConvId, message);
-    await db.query(
-      `INSERT INTO analytics_events (user_id, event_type, properties) VALUES ($1, 'chat_sent', $2)`,
-      [userId, JSON.stringify({ conversationId, messageLength: message.length, stream })]
-    );
-    if (stream) {
-      await streamChatWithClaude({ userId, userMessage: message, conversationId, planName, maxTokens: plan.max_tokens_per_request, res });
-    } else {
-      const result = await chatWithClaude({ userId, userMessage: message, conversationId, planName, maxTokens: plan.max_tokens_per_request });
-      res.json({ conversationId, ...result });
+  // Load existing project
+  if (currentProjectId) {
+    const proj = getProject(currentProjectId);
+    if (proj && proj.messages.length > 0) {
+      hideWelcome(true);
+      proj.messages.forEach(msg => {
+        if (msg.role === 'user') renderUserMessage(msg.text);
+        else renderAgentResponse(msg.text, msg.steps || []);
+      });
     }
-  } catch (err: unknown) {
-    const e = err as { code?: string; message?: string };
-    if (e.code === 'LIMIT_DAILY' || e.code === 'LIMIT_MONTHLY') {
-      res.status(429).json({ error: e.message, upgradeUrl: `${process.env.DASHBOARD_URL}/billing` });
-    } else {
-      logger.error('Chat error', { error: e.message, userId });
-      res.status(500).json({ error: 'AI request failed. Please try again.' });
+  }
+}
+
+function renderProjectsList() {
+  const el = document.getElementById('projectsList');
+  if (!el) return;
+  if (!projects.length) {
+    el.innerHTML = `<div style="font-size:12px;color:var(--text-3);padding:8px 8px;">No projects yet</div>`;
+    return;
+  }
+  const studioIcon = `<img src="./roblox-studio-icon.png" style="width:18px;height:18px;border-radius:4px;flex-shrink:0;object-fit:cover;"/>`;
+  el.innerHTML = projects.map(p => `
+    <div onclick="switchProject('${p.id}')" style="display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:7px;cursor:pointer;margin-bottom:1px;background:${currentProjectId===p.id?'rgba(255,255,255,0.1)':'transparent'};transition:background 0.12s;position:relative;"
+      onmouseover="this.style.background='${currentProjectId===p.id?'rgba(255,255,255,0.1)':'rgba(255,255,255,0.06)'}';this.querySelector('.proj-dots').style.opacity='1'"
+      onmouseout="this.style.background='${currentProjectId===p.id?'rgba(255,255,255,0.1)':'transparent'}';this.querySelector('.proj-dots').style.opacity='0'">
+      ${studioIcon}
+      <span style="flex:1;font-size:14px;font-weight:500;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</span>
+      <span class="proj-dots" onclick="event.stopPropagation();showProjMenu('${p.id}',event)" style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;color:var(--text-2);opacity:0;transition:opacity 0.15s,background 0.12s;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;flex-shrink:0;"
+        onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">···</span>
+    </div>`).join('');
+}
+
+// Project context menu
+let projMenuEl = null;
+function showProjMenu(projId, e) {
+  e.stopPropagation();
+  closeProjMenu();
+  const rect = e.target.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.id = 'projCtxMenu';
+  menu.style.cssText = `position:fixed;top:${rect.bottom+4}px;left:${rect.left-130}px;z-index:3000;background:var(--bg-2);border:1px solid var(--border-2);border-radius:10px;padding:5px;min-width:160px;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:msg-in 0.15s ease;`;
+  menu.innerHTML = `
+    <div onclick="renameProject('${projId}');closeProjMenu()" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:13px;color:var(--text);cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Rename Project
+    </div>
+    <div onclick="deleteProject('${projId}');closeProjMenu()" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:13px;color:var(--red);cursor:pointer;transition:background 0.12s;" onmouseover="this.style.background='rgba(248,113,113,0.08)'" onmouseout="this.style.background='transparent'">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      Delete Project
+    </div>`;
+  document.body.appendChild(menu);
+  projMenuEl = menu;
+  setTimeout(() => document.addEventListener('click', closeProjMenu, {once:true}), 10);
+}
+
+function closeProjMenu() {
+  if (projMenuEl) { projMenuEl.remove(); projMenuEl = null; }
+}
+
+function renameProject(id) {
+  const proj = getProject(id);
+  if (!proj) return;
+  const name = prompt('Rename project:', proj.name);
+  if (name && name.trim()) {
+    proj.name = name.trim();
+    saveProjects();
+    renderProjectsList();
+    if (currentProjectId === id) updateTopBarProject();
+  }
+}
+
+function updateTopBarProject(animate) {
+  const pn = document.getElementById('topProjectName');
+  const betaEl = document.getElementById('topBeta');
+  if (!pn) return;
+
+  const proj = currentProjectId ? getProject(currentProjectId) : null;
+  const newText = proj ? proj.name : 'Lychee';
+  const isProject = !!proj;
+
+  if (animate && pn.textContent !== newText) {
+    // Slide out old text
+    pn.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
+    pn.style.opacity = '0';
+    pn.style.transform = 'translateY(-6px)';
+    setTimeout(() => {
+      pn.textContent = newText;
+      pn.style.fontSize = isProject ? '14px' : '15px';
+      pn.style.fontWeight = isProject ? '500' : '700';
+      pn.style.transform = 'translateY(6px)';
+      // Slide in new text
+      requestAnimationFrame(() => {
+        pn.style.transition = 'opacity 0.22s ease, transform 0.22s ease';
+        pn.style.opacity = '1';
+        pn.style.transform = 'translateY(0)';
+      });
+    }, 180);
+
+    // Move beta: next to logo when project open, after name when on welcome
+    if (betaEl) {
+      betaEl.style.transition = 'opacity 0.2s ease';
+      betaEl.style.opacity = '0';
+      setTimeout(() => {
+        const topLeft = pn.parentElement;
+        if (isProject) {
+          // beta goes right after the logo (index 1)
+          topLeft.insertBefore(betaEl, pn);
+        } else {
+          // beta goes after the name
+          topLeft.appendChild(betaEl);
+        }
+        betaEl.style.opacity = '1';
+      }, 180);
+    }
+  } else {
+    pn.textContent = newText;
+    pn.style.fontSize = isProject ? '14px' : '15px';
+    pn.style.fontWeight = isProject ? '500' : '700';
+    pn.style.opacity = '1';
+    pn.style.transform = 'none';
+  }
+}
+
+function switchProject(id) {
+  currentProjectId = id;
+  updateTopBarProject(true);
+  renderBuild();
+}
+
+function startNewProject() {
+  currentProjectId = null;
+  updateTopBarProject(true);
+  renderBuild();
+}
+
+function setAgentPrompt(text) {
+  const el = document.getElementById('agentInput');
+  if (el) { el.value = text; el.focus(); autoResize(el); onAgentInput(el); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+
+function onAgentInput(el) {
+  const btn = document.getElementById('agentSendBtn');
+  if (btn) {
+    btn.style.background = el.value.trim() ? 'var(--accent)' : 'var(--surface-2)';
+    btn.style.color = el.value.trim() ? 'white' : 'var(--text-3)';
+  }
+}
+
+function onAgentFocus() {
+  const wrap = document.getElementById('agentInputWrapCenter');
+  if (wrap) { wrap.style.borderColor='rgba(232,84,122,0.45)'; wrap.style.boxShadow='0 0 0 3px rgba(232,84,122,0.1),0 8px 40px rgba(0,0,0,0.4)'; }
+  phPaused = true; clearTimeout(phTimer);
+}
+function onAgentBlur() {
+  const wrap = document.getElementById('agentInputWrapCenter');
+  if (wrap) { wrap.style.borderColor='var(--border-2)'; wrap.style.boxShadow='0 8px 40px rgba(0,0,0,0.4)'; }
+  const el = document.getElementById('agentInput');
+  if (!el?.value?.trim()) { phPaused = false; startPlaceholderCycle(); }
+}
+function onDockedFocus() {
+  // Never show pink outline — keep red if disconnected, else subtle only
+  if (!pluginConnected) return; // red stays
+  const wrap = document.getElementById('agentInputWrapDocked');
+  if (wrap) { wrap.style.borderColor='var(--border-2)'; wrap.style.boxShadow='none'; }
+}
+function onDockedBlur() {
+  if (!pluginConnected) return; // red stays
+  const wrap = document.getElementById('agentInputWrapDocked');
+  if (wrap) { wrap.style.borderColor='var(--border-2)'; wrap.style.boxShadow='none'; }
+}
+function onDockedInput(el) {
+  const btn = document.getElementById('agentSendBtnDocked');
+  if (btn) {
+    btn.style.background = el.value.trim() ? 'var(--accent)' : 'var(--surface-2)';
+    btn.style.color = el.value.trim() ? 'white' : 'var(--text-3)';
+  }
+}
+
+let welcomeHidden = false;
+function hideWelcome(instant) {
+  if (welcomeHidden) return;
+  welcomeHidden = true;
+  const w = document.getElementById('agentWelcome');
+  const msgs = document.getElementById('agentMessages');
+  const bar = document.getElementById('agentInputBar');
+  const bg = document.getElementById('buildBg');
+  if (!w) return;
+
+  // Hide bg cards
+  if (bg) { bg.style.transition='opacity 0.5s ease'; bg.style.opacity='0'; setTimeout(()=>{ bg.style.display='none'; },500); }
+
+  if (instant) {
+    w.remove();
+    if (msgs) msgs.style.display='flex';
+    if (bar) { bar.style.display='block'; bar.style.opacity='1'; startPluginCheck(); }
+    return;
+  }
+
+  // Show messages area and docked bar (invisible)
+  if (msgs) msgs.style.display='flex';
+  if (bar) { bar.style.display='block'; bar.style.opacity='0'; bar.style.transform='translateY(10px)'; bar.style.transition='opacity 0.35s ease, transform 0.35s ease'; }
+
+  // Step 1: fade out title, subtitle, chips (keep input visible)
+  const title = document.getElementById('agentTitle');
+  const sub = document.getElementById('agentSub');
+  const chips = document.getElementById('agentChips');
+  const footer = document.getElementById('centerFooter');
+  [title, sub, chips, footer].forEach(el => {
+    if (el) { el.style.transition='opacity 0.2s ease'; el.style.opacity='0'; }
+  });
+
+  // Step 2: slide the whole welcome down and fade out
+  setTimeout(() => {
+    w.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    w.style.opacity = '0';
+    w.style.transform = 'translateY(20px)';
+  }, 180);
+
+  // Step 3: remove welcome, fade in docked bar
+  setTimeout(() => {
+    if (w.parentNode) w.remove();
+    if (bar) {
+      bar.style.opacity='1';
+      bar.style.transform='translateY(0)';
+      startPluginCheck();
+    }
+    setTimeout(() => {
+      const di = document.getElementById('agentInputDocked');
+      if (di) di.focus();
+    }, 50);
+  }, 480);
+}
+
+function renderUserMessage(text) {
+  const msgList = document.getElementById('msgList');
+  if (!msgList) return;
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;justify-content:flex-end;animation:msg-in 0.25s ease;';
+  div.innerHTML = `<div style="max-width:65%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:18px 18px 4px 18px;padding:10px 15px;font-size:14px;line-height:1.6;">${text.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>`;
+  msgList.appendChild(div);
+  document.getElementById('agentMessages').scrollTop = 9999;
+}
+
+function renderAgentResponse(text, steps, isStreaming) {
+  const msgList = document.getElementById('msgList');
+  if (!msgList) return;
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:12px;align-items:flex-start;animation:msg-in 0.3s ease;';
+  const dotsHtml = isStreaming ? `<div id="typingDots_${Date.now()}" class="typing-dots" style="display:flex;gap:5px;margin-top:10px;align-items:center;">
+    <div style="width:7px;height:7px;border-radius:50%;background:var(--text-3);animation:typeWave 1.1s ease-in-out infinite;animation-delay:0s;"></div>
+    <div style="width:7px;height:7px;border-radius:50%;background:var(--text-3);animation:typeWave 1.1s ease-in-out infinite;animation-delay:0.18s;"></div>
+    <div style="width:7px;height:7px;border-radius:50%;background:var(--text-3);animation:typeWave 1.1s ease-in-out infinite;animation-delay:0.36s;"></div>
+  </div>` : '';
+  div.innerHTML = `
+    <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;flex-shrink:0;margin-top:3px;">
+      <img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/>
+    </div>
+    <div style="flex:1;max-width:720px;">
+      <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:12px;letter-spacing:-0.3px;">Lychee</div>
+      <div class="agent-response-text" style="font-size:15px;line-height:1.85;color:var(--text);">${text}</div>
+      ${dotsHtml}
+      ${steps?.length ? `<div style="margin-top:14px;display:flex;flex-direction:column;gap:4px;">${steps.map(s=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface);border-radius:8px;font-size:13px;color:var(--text-2);">
+          ${STEP_FILE_ICON} ${s.text}
+        </div>`).join('')}</div>` : ''}
+      <div style="margin-top:10px;font-size:11px;color:var(--text-3);">Rate this response &nbsp;<span style="cursor:pointer;" onclick="this.textContent='▲ helpful'">▲</span>&nbsp;<span style="cursor:pointer;margin-left:6px;" onclick="this.textContent='▼'">▼</span></div>
+    </div>`;
+  msgList.appendChild(div);
+  document.getElementById('agentMessages').scrollTop = 9999;
+  return div;
+}
+
+function removeTypingDots(responseDiv) {
+  if (!responseDiv) return;
+  const dots = responseDiv.querySelector('.typing-dots');
+  if (dots) { dots.style.transition='opacity 0.2s'; dots.style.opacity='0'; setTimeout(()=>dots.remove(), 200); }
+}
+
+// ── PLAN APPROVAL ──
+function showPlanApproval(thinkingId, planSteps, onApprove, onReject) {
+  const stepsEl = document.getElementById('thinkingSteps_' + thinkingId);
+  if (!stepsEl) { onApprove(); return null; }
+
+  const planChip = document.createElement('div');
+  planChip.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface);border-radius:8px;font-size:13px;color:var(--text-2);margin-bottom:3px;animation:step-in 0.2s ease;';
+  planChip.innerHTML = `${STEP_GEAR_ICON}<span>Plan ready for approval</span>`;
+  stepsEl.appendChild(planChip);
+
+  const stepsBox = document.createElement('div');
+  stepsBox.id = 'planStepsBox';
+  stepsBox.style.cssText = 'background:var(--surface);border-radius:10px;padding:12px 14px;margin-top:6px;animation:step-in 0.2s ease;';
+  stepsBox.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">
+      ${STEP_FILE_ICON} <span id="planStepsCounter">Steps (0/${planSteps.length})</span>
+    </div>
+    <div id="planStepsList" style="display:flex;flex-direction:column;gap:6px;">
+      ${planSteps.map((s, i) => `<div id="planStep_${i}" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);">
+        <div id="planStepCheck_${i}" style="width:15px;height:15px;border:1.5px solid var(--border-2);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;"></div>
+        <span>${s}</span>
+      </div>`).join('')}
+    </div>
+    <div style="font-size:13px;color:var(--text-2);margin-top:12px;" id="planApprovalQuestion">Do you approve this plan?</div>
+    <div id="planApprovalBtns" style="display:flex;gap:8px;margin-top:8px;">
+      <button id="planYes" style="display:flex;align-items:center;gap:6px;padding:6px 16px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border-2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--bg-3)'" onmouseout="this.style.background='var(--surface-2)'">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Yes
+      </button>
+      <button id="planNo" style="display:flex;align-items:center;gap:6px;padding:6px 16px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border-2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--bg-3)'" onmouseout="this.style.background='var(--surface-2)'">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> No
+      </button>
+    </div>`;
+  stepsEl.appendChild(stepsBox);
+  document.getElementById('agentMessages').scrollTop = 9999;
+
+  stepsBox.querySelector('#planYes').onclick = () => {
+    // Hide buttons and question
+    stepsBox.querySelector('#planApprovalBtns').style.display = 'none';
+    stepsBox.querySelector('#planApprovalQuestion').style.display = 'none';
+    planChip.remove();
+    onApprove(stepsBox, planSteps.length);
+  };
+  stepsBox.querySelector('#planNo').onclick = () => {
+    stepsBox.remove();
+    planChip.remove();
+    onReject();
+  };
+  return stepsBox;
+}
+
+// Animate a step checkbox — spinner while working, checkmark when done
+function setPlanStepLoading(index) {
+  const el = document.getElementById(`planStepCheck_${index}`);
+  if (!el) return;
+  el.innerHTML = `<div style="width:11px;height:11px;border:1.5px solid var(--text-3);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;"></div>`;
+}
+
+function setPlanStepDone(index, total) {
+  const el = document.getElementById(`planStepCheck_${index}`);
+  if (el) {
+    el.style.border = 'none';
+    el.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  }
+  const row = document.getElementById(`planStep_${index}`);
+  if (row) row.style.opacity = '0.6';
+  const counter = document.getElementById('planStepsCounter');
+  if (counter) counter.textContent = `Steps (${index + 1}/${total})`;
+  document.getElementById('agentMessages').scrollTop = 9999;
+}
+
+function addThinkingBubble() {
+  const msgList = document.getElementById('msgList');
+  if (!msgList) return;
+  const id = 'thinking_' + Date.now();
+  const div = document.createElement('div');
+  div.id = id;
+  div.style.cssText = 'display:flex;gap:12px;align-items:flex-start;animation:msg-in 0.25s ease;';
+  div.innerHTML = `
+    <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;flex-shrink:0;margin-top:3px;">
+      <img src="./lychee-ai-logo.png" style="width:100%;height:100%;object-fit:cover;"/>
+    </div>
+    <div style="flex:1;">
+      <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:12px;letter-spacing:-0.3px;">Lychee</div>
+      <div id="thinkingSteps_${id}" style="display:flex;flex-direction:column;gap:4px;"></div>
+    </div>`;
+  msgList.appendChild(div);
+  document.getElementById('agentMessages').scrollTop = 9999;
+  return id;
+}
+
+const STEP_SEARCH_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;color:var(--text-3);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`;
+const STEP_FILE_ICON   = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--text-3);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+const STEP_GEAR_ICON   = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--text-3);"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>`;
+
+function pickStepIcon(text) {
+  const t = text.toLowerCase();
+  if (t.includes('creat') || t.includes('insert') || t.includes('folder') || t.includes('script') || t.includes('part') || t.includes('remote') || t.includes('event') || t.includes('edit')) return STEP_FILE_ICON;
+  if (t.includes('search') || t.includes('find') || t.includes('analyz') || t.includes('investigat') || t.includes('reference') || t.includes('animat') || t.includes('look')) return STEP_SEARCH_ICON;
+  return STEP_GEAR_ICON;
+}
+
+function addThinkingStep(thinkingId, text) {
+  const stepsEl = document.getElementById('thinkingSteps_' + thinkingId);
+  if (!stepsEl) return;
+  const stepId = 'step_' + Date.now();
+  const div = document.createElement('div');
+  div.id = stepId;
+  div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface);border-radius:8px;font-size:13px;color:var(--text-2);animation:step-in 0.2s ease;margin-bottom:3px;';
+  div.innerHTML = `${pickStepIcon(text)}<span style="flex:1;">${text}</span><div style="width:10px;height:10px;border:1.5px solid var(--text-3);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>`;
+  stepsEl.appendChild(div);
+  document.getElementById('agentMessages').scrollTop = 9999;
+  return stepId;
+}
+
+function completeThinkingStep(stepId, text) {
+  const el = document.getElementById(stepId);
+  if (!el) return;
+  el.innerHTML = `${pickStepIcon(text)}<span style="flex:1;color:var(--text-2);">${text}</span>`;
+  el.style.opacity = '0.6';
+}
+
+function replaceThinkingWithResponse(thinkingId, responseText, steps, streaming) {
+  const el = document.getElementById(thinkingId);
+  if (!el) return null;
+  el.style.transition = 'opacity 0.2s';
+  el.style.opacity = '0';
+  let responseDiv = null;
+  setTimeout(() => { el.remove(); responseDiv = renderAgentResponse(responseText, steps, streaming); }, 200);
+  return new Promise(r => setTimeout(() => r(responseDiv), 250));
+}
+
+// ── SEND CORE ──
+// Retry wrapper for Gemini API calls
+async function apiWithRetry(method, path, body, maxRetries = 3) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const result = await api(method, path, body);
+    // If result is valid (has jobId or isn't an error), return it
+    if (result?.jobId || result?.jobs || result?.connected !== undefined || result?.ok) return result;
+    // If it's a rate limit / 503 style error, wait and retry
+    if (result?.error && (result.error.includes('429') || result.error.includes('503') || result.error.toLowerCase().includes('try again') || result.error.toLowerCase().includes('overloaded'))) {
+      lastErr = result.error;
+      const wait = attempt * 2000;
+      await sleep(wait);
+      continue;
+    }
+    // Other errors — return as-is
+    return result;
+  }
+  return { error: lastErr || 'Request failed after retries' };
+}
+
+async function sendAgentCore(text, inputEl, btnEl) {
+  if (!text || btnEl?.disabled) return;
+  if (!currentProjectId) {
+    const proj = createProject(text.slice(0, 32) + (text.length > 32 ? '...' : ''));
+    currentProjectId = proj.id;
+    renderProjectsList();
+    updateTopBarProject(true);
+  }
+  if (inputEl) { inputEl.value = ''; inputEl.style.height = 'auto'; }
+  if (btnEl) { btnEl.disabled = true; btnEl.style.background = 'var(--surface-2)'; btnEl.style.color = 'var(--text-3)'; }
+  phPaused = true;
+  hideWelcome(false);
+  welcomeHidden = true;
+  const proj = getProject(currentProjectId);
+  if (proj) { proj.messages.push({ role: 'user', text }); saveProjects(); }
+  renderUserMessage(text);
+
+  const thinkingId = addThinkingBubble();
+  const isCodeRequest = /\b(make|create|build|add|script|code|system|button|gui|ui|tool|weapon|leaderboard|datastore|teleport|spawn|kill|damage|health|shop|tween|animate|part|model|remote|event|function|loop|timer|round|team|badge|game pass|npc|ai|pathfind|ragdoll|physics|touch|click|detect|save|load|module|local|server|replicated)\b/i.test(text);
+
+  const s1 = addThinkingStep(thinkingId, 'Working on the task');
+  await sleep(300);
+
+  let responseText = '';
+  let steps = [];
+
+  if (isCodeRequest) {
+    completeThinkingStep(s1, 'Working on the task');
+
+    const history = (proj?.messages || []).slice(-10).map(m => `${m.role === 'user' ? 'User' : 'Lychee'}: ${typeof m.text === 'string' ? m.text.replace(/<[^>]+>/g,'') : ''}`).join('\n');
+
+    const investigateLabel = inferInvestigation(text);
+    const s2 = addThinkingStep(thinkingId, investigateLabel);
+    await sleep(500);
+    completeThinkingStep(s2, investigateLabel);
+
+    // Generate job first
+    const s3 = addThinkingStep(thinkingId, 'Generating Luau script');
+    const promptWithMemory = history ? `Previous context:\n${history}\n\nNew request: ${text}` : text;
+    let attempt = 0;
+    let result = null;
+    while (attempt < 3) {
+      result = await api('POST', '/jobs', { prompt: promptWithMemory, scriptType: inferScriptType(text), insertLocation: inferLocation(text) });
+      if (result?.jobId) break;
+      attempt++;
+      if (attempt < 3) { replaceStepText(s3, `Retrying… (attempt ${attempt+1}/3)`); await sleep(attempt * 2000); }
+    }
+
+    if (!result?.jobId) {
+      completeThinkingStep(s3, 'Generating Luau script');
+      await replaceThinkingWithResponse(thinkingId, `<p>Gemini is busy right now — I tried 3 times. Please wait a moment and try again.</p>`, [], false);
+      if (btnEl) { btnEl.disabled = false; } return;
+    }
+
+    // Wait for job to be ready
+    const jobReady = await pollForJobWithSteps(result.jobId, null, text);
+    completeThinkingStep(s3, 'Generated Luau script');
+
+    if (!jobReady?._ok) {
+      const err = jobReady?._error || '';
+      const isGeminiBusy = err.includes('503') || err.includes('high demand') || err.includes('429');
+      await replaceThinkingWithResponse(thinkingId, isGeminiBusy
+        ? `<p>Gemini is overloaded right now. Wait 30 seconds and try again.</p>`
+        : `<p>Something went wrong generating code. Make sure the plugin is open and try again.</p>`, [], false);
+      if (btnEl) { btnEl.disabled = false; } return;
+    }
+
+    // Job is ready, show plan approval — plugin won't pick it up (status=awaiting_approval)
+    const planSteps = inferPlanSteps(text);
+    const { approved, stepsBox, stepCount } = await new Promise(resolve => {
+      showPlanApproval(thinkingId, planSteps,
+        (box, count) => resolve({ approved: true,  stepsBox: box, stepCount: count }),
+        ()           => resolve({ approved: false, stepsBox: null, stepCount: 0 })
+      );
+    });
+
+    if (!approved) {
+      await api('POST', `/jobs/${result.jobId}/cancel`, {});
+      await replaceThinkingWithResponse(thinkingId, `<p>No problem — let me know if you'd like to adjust the plan or try something different.</p>`, [], false);
+      if (proj) { proj.messages.push({ role: 'agent', text: 'Plan cancelled.', steps: [] }); saveProjects(); }
+      if (btnEl) { btnEl.disabled = false; } return;
+    }
+
+    // Animate first step as loading
+    setPlanStepLoading(0);
+    document.getElementById('agentMessages').scrollTop = 9999;
+
+    // Release job for plugin
+    console.log('[Lychee] Releasing job:', result.jobId);
+    const releaseResult = await api('POST', `/jobs/${result.jobId}/release`, {});
+    console.log('[Lychee] Release result:', releaseResult);
+
+    // Animate checkboxes progressively while plugin inserts (estimated 3s per step)
+    await new Promise(resolve => {
+      let currentStep = 0;
+      setPlanStepLoading(0);
+      const interval = setInterval(() => {
+        setPlanStepDone(currentStep, stepCount);
+        currentStep++;
+        if (currentStep >= stepCount) {
+          clearInterval(interval);
+          setTimeout(resolve, 400);
+        } else {
+          setPlanStepLoading(currentStep);
+        }
+      }, 3000);
+    });
+
+    if (btnEl) { btnEl.disabled = false; }
+    const loc  = jobReady.insertLocation || 'ServerScriptService';
+    const name = jobReady.scriptName    || 'LycheeAI_Script';
+    const expl = jobReady.explanation   || 'Script created and inserted into Studio.';
+    const type = jobReady.scriptType    || 'Script';
+    steps = [{ text: `Created ${type} at ${loc}/${name}` }];
+    responseText = `<p style="margin-bottom:14px;">${expl}</p><p>Placed in <strong>${loc}</strong> as <strong>${name}</strong>. Open your <strong>Explorer</strong> panel and press <strong>Play</strong> to test it.</p>`;
+
+  } else {
+    // Conversational
+    completeThinkingStep(s1, 'Working on the task');
+    const responseDiv = await replaceThinkingWithResponse(thinkingId, '', [], true);
+    const convResult = await apiWithRetry('POST', '/jobs', { prompt: `Answer conversationally (no code unless asked): ${text}`, scriptType: 'Script', insertLocation: 'ServerScriptService' });
+    if (btnEl) { btnEl.disabled = false; }
+    const expl = convResult?.explanation || "I'm not sure about that — could you give me more detail?";
+    responseText = `<p>${expl}</p>`;
+    if (responseDiv) {
+      removeTypingDots(responseDiv);
+      const textEl = responseDiv.querySelector('.agent-response-text');
+      if (textEl) textEl.innerHTML = responseText;
     }
   }
-});
 
-// ═══════════════════════════════════════════════════
-// CONVERSATIONS
-// ═══════════════════════════════════════════════════
-router.get('/conversations', requireAuth, async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
-  const offset = parseInt(req.query.offset as string) || 0;
-  const { rows } = await db.query(
-    `SELECT c.id, c.title, c.created_at, c.updated_at,
-            COUNT(m.id) AS message_count, MAX(m.created_at) AS last_message_at
-     FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id
-     WHERE c.user_id = $1 AND c.archived = false
-     GROUP BY c.id, c.title, c.created_at, c.updated_at
-     ORDER BY COALESCE(MAX(m.created_at), c.created_at) DESC LIMIT $2 OFFSET $3`,
-    [req.user!.sub, limit, offset]
-  );
-  res.json({ conversations: rows, limit, offset });
-});
+  if (proj) { proj.messages.push({ role: 'agent', text: responseText, steps }); saveProjects(); }
+}
 
-router.get('/conversations/:id', requireAuth, async (req, res) => {
-  const { rows } = await db.query(
-    `SELECT c.*, array_agg(
-       json_build_object('id', m.id, 'role', m.role, 'content', m.content, 'created_at', m.created_at)
-       ORDER BY m.created_at) AS messages
-     FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id
-     WHERE c.id = $1 AND c.user_id = $2 GROUP BY c.id`,
-    [req.params.id, req.user!.sub]
-  );
-  if (rows.length === 0) { res.status(404).json({ error: 'Conversation not found' }); return; }
-  res.json(rows[0]);
-});
+// ── Infer plan steps from prompt ──
+function inferPlanSteps(text) {
+  const steps = [];
+  if (/remote|event|function/i.test(text)) steps.push('Create RemoteEvent in ReplicatedStorage');
+  if (/module/i.test(text)) steps.push('Create ModuleScript in ReplicatedStorage');
+  if (/gui|ui|screen|button|label/i.test(text)) steps.push('Create ScreenGui with UI elements in StarterGui');
+  if (/leaderstats|leaderboard|points|cash|coins/i.test(text)) steps.push('Create leaderstats Script in ServerScriptService');
+  if (/local|client|player/i.test(text)) steps.push('Create LocalScript in StarterPlayerScripts');
+  // Always include the main script
+  const loc = inferLocation(text);
+  const type = inferScriptType(text);
+  const already = steps.some(s => s.includes(loc));
+  if (!already) steps.push(`Create ${type} in ${loc}`);
+  if (steps.length === 0) steps.push(`Create Script in ServerScriptService`);
+  return steps;
+}
 
-router.delete('/conversations/:id', requireAuth, async (req, res) => {
-  await db.query(`UPDATE conversations SET archived = true WHERE id = $1 AND user_id = $2`, [req.params.id, req.user!.sub]);
-  res.json({ message: 'Conversation archived' });
-});
+// ── Helpers for dynamic step text ──
+function inferInvestigation(text) {
+  if (/gui|ui|screen|button|label|frame|textbox/i.test(text)) return 'Investigating (ScreenGui + LocalScript)';
+  if (/datastore|save|load|persist/i.test(text)) return 'Investigating (DataStoreService)';
+  if (/leaderstats|leaderboard|points|cash|coins|score/i.test(text)) return 'Investigating (leaderstats setup)';
+  if (/remote|event|function|client|server/i.test(text)) return 'Investigating (RemoteEvents)';
+  if (/npc|pathfind|ai|enemy/i.test(text)) return 'Investigating (PathfindingService)';
+  if (/tween|anim|move|lerp/i.test(text)) return 'Investigating (TweenService)';
+  if (/shop|purchase|product|gamepass/i.test(text)) return 'Investigating (MarketplaceService)';
+  if (/touch|click|detect|proximity/i.test(text)) return 'Investigating (1 tool)';
+  return 'Investigating (2 tools)';
+}
 
-// ═══════════════════════════════════════════════════
-// USAGE STATS
-// ═══════════════════════════════════════════════════
-router.get('/usage', requireAuth, async (req, res) => {
-  const userId = req.user!.sub;
-  const [daily, monthly, planInfo] = await Promise.all([
-    db.query<{ count: string; tokens_in: string; tokens_out: string }>(
-      `SELECT COUNT(*) AS count, COALESCE(SUM(tokens_input),0) AS tokens_in, COALESCE(SUM(tokens_output),0) AS tokens_out
-       FROM usage_logs WHERE user_id=$1 AND success=true AND created_at>=DATE_TRUNC('day',NOW())`, [userId]),
-    db.query<{ count: string; tokens_in: string; tokens_out: string; cost: string }>(
-      `SELECT COUNT(*) AS count, COALESCE(SUM(tokens_input),0) AS tokens_in, COALESCE(SUM(tokens_output),0) AS tokens_out, COALESCE(SUM(cost_usd),0) AS cost
-       FROM usage_logs WHERE user_id=$1 AND success=true AND created_at>=DATE_TRUNC('month',NOW())`, [userId]),
-    db.query<{ requests_per_day: number; requests_per_month: number }>(
-      `SELECT sp.requests_per_day, sp.requests_per_month FROM users u JOIN subscription_plans sp ON u.plan_id=sp.id WHERE u.id=$1`, [userId]),
-  ]);
-  res.json({
-    today: { requests: parseInt(daily.rows[0].count), tokensInput: parseInt(daily.rows[0].tokens_in), tokensOutput: parseInt(daily.rows[0].tokens_out), limit: planInfo.rows[0]?.requests_per_day ?? 20 },
-    month: { requests: parseInt(monthly.rows[0].count), tokensInput: parseInt(monthly.rows[0].tokens_in), tokensOutput: parseInt(monthly.rows[0].tokens_out), costUsd: parseFloat(monthly.rows[0].cost).toFixed(4), limit: planInfo.rows[0]?.requests_per_month ?? 100 },
+function inferScriptType(text) {
+  if (/localscript|client|gui|ui|screen|button|player/i.test(text)) return 'LocalScript';
+  if (/module/i.test(text)) return 'ModuleScript';
+  return 'Script';
+}
+
+function inferLocation(text) {
+  if (/starterplayerscripts|localscript|client|gui|ui|screen/i.test(text)) return 'StarterPlayerScripts';
+  if (/startergui/i.test(text)) return 'StarterGui';
+  if (/replicated/i.test(text)) return 'ReplicatedStorage';
+  if (/module/i.test(text)) return 'ReplicatedStorage';
+  return 'ServerScriptService';
+}
+
+function replaceStepText(stepId, newText) {
+  const el = document.getElementById(stepId);
+  if (!el) return;
+  const span = el.querySelector('span');
+  if (span) span.textContent = newText;
+}
+
+async function pollForJobWithSteps(jobId, thinkingId, prompt) {
+  return new Promise(resolve => {
+    let polls = 0;
+    const interval = setInterval(async () => {
+      const status = await api('GET', `/jobs/${jobId}/status`);
+      polls++;
+      if (status?.status === 'completed' || status?.status === 'inserted' || status?.status === 'awaiting_approval') {
+        clearInterval(interval);
+        resolve({ ...status, _ok: true });
+      } else if (status?.status === 'failed') {
+        clearInterval(interval);
+        resolve({ _ok: false, _error: status.error || '' });
+      } else if (polls > 50) {
+        clearInterval(interval);
+        resolve({ _ok: false, _error: 'timeout' });
+      }
+    }, 2000);
   });
-});
+}
 
-// ═══════════════════════════════════════════════════
-// BILLING / STRIPE
-// ═══════════════════════════════════════════════════
-router.post('/billing/create-checkout', requireAuth, async (req, res) => {
-  const schema = z.object({ planName: z.enum(['pro', 'team', 'enterprise']) });
-  if (!validate(schema, req.body, res)) return;
-  const { rows: plan } = await db.query(`SELECT * FROM subscription_plans WHERE name=$1`, [req.body.planName]);
-  if (!plan[0]?.stripe_price_id) { res.status(400).json({ error: 'Plan not available' }); return; }
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription', payment_method_types: ['card'],
-    line_items: [{ price: plan[0].stripe_price_id, quantity: 1 }],
-    success_url: `${process.env.DASHBOARD_URL}/billing?success=true`,
-    cancel_url: `${process.env.DASHBOARD_URL}/billing?canceled=true`,
-    metadata: { userId: req.user!.sub, planName: req.body.planName },
+function inferCreatedStep(text) {
+  const loc = inferLocation(text);
+  if (/gui|ui|screen/i.test(text)) return `Creating ScreenGui at ${loc}`;
+  if (/module/i.test(text)) return `Creating ModuleScript at ${loc}`;
+  if (/local/i.test(text)) return `Creating LocalScript at ${loc}`;
+  return `Creating Script at ${loc}`;
+}
+
+async function sendAgentMessage() {
+  const input = document.getElementById('agentInput');
+  const btn = document.getElementById('agentSendBtn');
+  await sendAgentCore(input?.value?.trim(), input, btn);
+}
+
+async function sendAgentMessageDocked() {
+  const input = document.getElementById('agentInputDocked');
+  const btn = document.getElementById('agentSendBtnDocked');
+  await sendAgentCore(input?.value?.trim(), input, btn);
+}
+
+async function pollForJob(jobId) {
+  let polls = 0;
+  return new Promise(resolve => {
+    const interval = setInterval(async () => {
+      if (++polls > 60) { clearInterval(interval); resolve(null); return; }
+      const s = await api('GET', `/jobs/${jobId}/status`);
+      if (!s) return;
+      if (s.status === 'completed' || s.status === 'inserted') { clearInterval(interval); resolve(s); }
+      else if (s.status === 'failed') { clearInterval(interval); resolve(null); }
+    }, 2000);
   });
-  res.json({ url: session.url });
-});
+}
 
-router.post('/billing/portal', requireAuth, async (req, res) => {
-  const { rows } = await db.query(`SELECT stripe_customer_id FROM subscriptions WHERE user_id=$1 LIMIT 1`, [req.user!.sub]);
-  if (!rows[0]?.stripe_customer_id) { res.status(400).json({ error: 'No billing account' }); return; }
-  const session = await stripe.billingPortal.sessions.create({ customer: rows[0].stripe_customer_id, return_url: `${process.env.DASHBOARD_URL}/billing` });
-  res.json({ url: session.url });
-});
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ═══════════════════════════════════════════════════
-// CODE JOBS — Website → Studio bridge
-// ═══════════════════════════════════════════════════
-router.post('/jobs', requireAuth, checkBanned, planUsageLimit, async (req, res) => {
-  const schema = z.object({
-    prompt: z.string().min(5).max(4000),
-    scriptType: z.enum(['Script','LocalScript','ModuleScript']).default('Script'),
-    insertLocation: z.string().max(100).default('ServerScriptService'),
+// ── PLUGIN CONNECTION CHECK ──
+let pluginCheckInterval = null;
+let pluginConnected = false;
+
+function setPluginConnected(connected) {
+  pluginConnected = connected;
+  const wrap = document.getElementById('agentInputWrapDocked');
+  const tooltip = document.getElementById('pluginTooltip');
+  const textarea = document.getElementById('agentInputDocked');
+  if (!wrap) return;
+  if (connected) {
+    wrap.style.borderColor = 'var(--border-2)';
+    wrap.style.boxShadow = 'none';
+    if (tooltip) tooltip.style.display = 'none';
+    if (textarea) {
+      textarea.disabled = false;
+      textarea.placeholder = 'Describe what you want to build...';
+      textarea.style.cursor = 'text';
+      textarea.style.color = 'var(--text)';
+    }
+  } else {
+    wrap.style.borderColor = 'var(--red)';
+    wrap.style.boxShadow = 'none';
+    if (tooltip) tooltip.style.display = 'block';
+    if (textarea) {
+      textarea.disabled = true;
+      textarea.placeholder = 'Connect the Lychee AI plugin in Roblox Studio first';
+      textarea.style.cursor = 'default';
+      textarea.style.color = 'var(--text-3)';
+    }
+  }
+}
+
+async function checkPluginStatus() {
+  // Try dedicated endpoint first, fall back to checking if plugin polled recently
+  const result = await api('GET', '/plugin/status').catch(() => null);
+  if (result && typeof result.connected === 'boolean') {
+    setPluginConnected(result.connected);
+  } else if (result === null) {
+    // No endpoint — assume disconnected to show the warning
+    setPluginConnected(false);
+  }
+}
+
+function startPluginCheck() {
+  stopPluginCheck();
+  checkPluginStatus();
+  pluginCheckInterval = setInterval(checkPluginStatus, 4000);
+}
+
+function stopPluginCheck() {
+  if (pluginCheckInterval) { clearInterval(pluginCheckInterval); pluginCheckInterval = null; }
+}
+const placeholderIdeas = [
+  'Make a sword with damage, swing animation and kill counter...',
+  'Make a shop GUI with currency display and buy buttons...',
+  'Make a round system with lobby, countdown and winner screen...',
+  'Make a leaderboard that saves player stats with DataStore...',
+  'Make a pet system where players can collect and equip pets...',
+  'Make a gun with shooting, reload and bullet spread...',
+  'Make an obby with moving parts, checkpoints and timer...',
+  'Make a tycoon where players collect money and buy upgrades...',
+  'Make a zombie survival game with waves and weapons...',
+  'Make a parkour system with wall running and double jump...',
+];
+let phIndex=0, phChar=0, phDeleting=false, phTimer=null, phPaused=false;
+
+function startPlaceholderCycle() {
+  const getEl = () => document.getElementById('agentInput') || document.getElementById('buildPrompt');
+  if (!getEl()) return;
+  clearTimeout(phTimer);
+  phIndex=0; phChar=0; phDeleting=false; phPaused=false;
+  function tick() {
+    const el = getEl();
+    if (!el || phPaused) return;
+    const phrase = placeholderIdeas[phIndex % placeholderIdeas.length];
+    if (!phDeleting) {
+      phChar++;
+      el.setAttribute('placeholder', phrase.slice(0, phChar));
+      if (phChar === phrase.length) { phDeleting=true; phTimer=setTimeout(tick,2200); return; }
+      phTimer = setTimeout(tick, 45);
+    } else {
+      phChar--;
+      el.setAttribute('placeholder', phrase.slice(0, phChar));
+      if (phChar === 0) { phDeleting=false; phIndex++; phTimer=setTimeout(tick,400); return; }
+      phTimer = setTimeout(tick, 25);
+    }
+  }
+  tick();
+}
+
+// ── GAME CARDS ──
+const gameColors = [
+  { color:'linear-gradient(135deg,#1a2a4a,#0d1a30)', label:'Combat Game', icon:'⚔️', accent:'#4a8fff' },
+  { color:'linear-gradient(135deg,#1a3a2a,#0d2018)', label:'Farming Sim', icon:'🌾', accent:'#4aff8a' },
+  { color:'linear-gradient(135deg,#3a1a4a,#200d30)', label:'Tower Defense', icon:'🏰', accent:'#c44aff' },
+  { color:'linear-gradient(135deg,#4a2a1a,#301808)', label:'Obby World', icon:'🏃', accent:'#ff8a4a' },
+  { color:'linear-gradient(135deg,#1a3a4a,#0d2030)', label:'Tycoon Game', icon:'🏭', accent:'#4affee' },
+  { color:'linear-gradient(135deg,#4a1a1a,#300d0d)', label:'Battle Royale', icon:'🎯', accent:'#ff4a4a' },
+  { color:'linear-gradient(135deg,#2a1a4a,#180d30)', label:'RPG Adventure', icon:'🗡️', accent:'#ff4aaa' },
+  { color:'linear-gradient(135deg,#3a3a1a,#202008)', label:'Racing Game', icon:'🏎️', accent:'#ffee4a' },
+];
+
+function spawnGameCards() {
+  const bg = document.getElementById('buildBg');
+  if (!bg) return;
+  bg.innerHTML = '';
+
+  // Organic scattered layout like the ref — cards around edges, center clear for input
+  const positions = [
+    // Top row - left of center
+    { top:'8%',  left:'2%',   w:185, h:116, rot:-5  },
+    { top:'5%',  left:'23%',  w:165, h:103, rot:3   },
+    // Top right
+    { top:'7%',  right:'2%',  w:178, h:111, rot:-2  },
+    // Middle sides
+    { top:'38%', left:'1%',   w:170, h:107, rot:6   },
+    { top:'42%', right:'2%',  w:172, h:108, rot:-5  },
+    // Bottom scattered
+    { top:'66%', left:'6%',   w:168, h:105, rot:-3  },
+    { top:'63%', left:'32%',  w:178, h:111, rot:4   },
+    { top:'68%', right:'5%',  w:175, h:109, rot:-4  },
+  ];
+
+  positions.forEach((pos, i) => {
+    const g = gameColors[i % gameColors.length];
+    const card = document.createElement('div');
+    card.className = 'game-float';
+    card._baseRot = pos.rot;
+    card._baseScale = 1;
+    Object.assign(card.style, {
+      width: pos.w+'px', height: pos.h+'px',
+      top: pos.top||'auto', left: pos.left||'auto', right: pos.right||'auto',
+      transform: `rotate(${pos.rot}deg) scale(1)`,
+      opacity: '0',
+    });
+    card.innerHTML = `
+      <div style="width:100%;height:100%;background:${g.color};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative;overflow:hidden;">
+        <div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 30%,${g.accent}22,transparent 60%);"></div>
+        <span style="font-size:30px;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.4));">${g.icon}</span>
+        <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.75);">${g.label}</span>
+        <div style="width:26px;height:2px;background:${g.accent};border-radius:9999px;opacity:0.5;"></div>
+      </div>
+      <div class="game-float-label">${g.label}</div>`;
+
+    card.addEventListener('mouseenter', () => {
+      card._hovered = true;
+      card.style.transition = 'opacity 0.3s ease, transform 0.35s cubic-bezier(0.34,1.3,0.64,1), box-shadow 0.25s ease';
+      card.style.transform = `rotate(0deg) scale(1.22)`;
+      card.style.opacity = '0.72';
+      card.style.boxShadow = `0 24px 64px rgba(0,0,0,0.7), 0 0 36px ${g.accent}44`;
+      card.style.zIndex = '20';
+    });
+    card.addEventListener('mouseleave', () => {
+      card._hovered = false;
+      card.style.transition = 'opacity 0.4s ease, transform 0.4s cubic-bezier(0.34,1.3,0.64,1), box-shadow 0.3s ease';
+      card.style.transform = `rotate(${pos.rot}deg) scale(1)`;
+      card.style.opacity = '0.15';
+      card.style.boxShadow = '0 10px 36px rgba(0,0,0,0.5)';
+      card.style.zIndex = '';
+    });
+
+    bg.appendChild(card);
+    // Staggered fade-in
+    setTimeout(() => {
+      card.style.transition = 'opacity 0.5s ease, transform 0.4s cubic-bezier(0.34,1.3,0.64,1), box-shadow 0.3s ease';
+      card.style.opacity = '0.15';
+    }, 80 + i * 70);
   });
-  if (!validate(schema, req.body, res)) return;
-  try {
-    const { jobId } = await createCodeJob(req.user!.sub, req.body.prompt, req.body.scriptType, req.body.insertLocation);
-    res.status(202).json({ jobId, message: 'Job created. Lychee AI is generating your code. The Studio plugin will insert it automatically.' });
-  } catch (err) { logger.error('Create job error', err); res.status(500).json({ error: 'Failed to create code job' }); }
-});
 
-router.get('/jobs/pending', requireAuth, async (req, res) => {
-  try { res.json(await getPendingJobsForUser(req.user!.sub)); }
-  catch { res.status(500).json({ error: 'Failed to fetch pending jobs' }); }
-});
+  // Cursor proximity — cards near cursor grow gently
+  let rafId = null;
+  bg.addEventListener('mousemove', (e) => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      const cards = bg.querySelectorAll('.game-float');
+      cards.forEach(card => {
+        if (card._hovered) return;
+        const rect = card.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
+        const maxDist = 220;
+        if (dist < maxDist) {
+          const t = 1 - dist / maxDist;
+          const scale = 1 + t * 0.12;
+          const op = 0.15 + t * 0.25;
+          card.style.transition = 'opacity 0.15s ease, transform 0.2s ease, box-shadow 0.2s ease';
+          card.style.transform = `rotate(${card._baseRot}deg) scale(${scale.toFixed(3)})`;
+          card.style.opacity = op.toFixed(2);
+        } else {
+          card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+          card.style.transform = `rotate(${card._baseRot}deg) scale(1)`;
+          card.style.opacity = '0.15';
+        }
+      });
+    });
+  });
 
-router.get('/jobs/:id/status', requireAuth, async (req, res) => {
-  const status = await getJobStatus(req.params.id, req.user!.sub);
-  if (!status) { res.status(404).json({ error: 'Job not found' }); return; }
-  res.json(status);
-});
+  bg.addEventListener('mouseleave', () => {
+    bg.querySelectorAll('.game-float').forEach(card => {
+      if (card._hovered) return;
+      card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+      card.style.transform = `rotate(${card._baseRot}deg) scale(1)`;
+      card.style.opacity = '0.15';
+    });
+  });
+}
 
-router.post('/jobs/:id/inserted', requireAuth, async (req, res) => {
-  try { await markJobInserted(req.params.id, req.user!.sub); res.json({ message: 'Job marked as inserted' }); }
-  catch { res.status(500).json({ error: 'Failed to mark job inserted' }); }
-});
+// ── OTHER PAGES ──
+async function renderUsage() {
+  document.getElementById('mainContent').innerHTML = `<div style="padding:32px;max-width:900px;"><div style="margin-bottom:24px;"><h1 style="font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:800;">Usage</h1><p style="color:var(--text-2);font-size:14px;margin-top:4px;">Your generation stats</p></div><div id="usageContent" style="color:var(--text-3)">Loading...</div></div>`;
+  const usage = await api('GET', '/usage');
+  if (!usage) return;
+  document.getElementById('usageContent').innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Today</div><div class="stat-value">${usage.today.requests}</div><div class="stat-sub">of ${usage.today.limit===-1?'∞':usage.today.limit} daily</div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min((usage.today.requests/(usage.today.limit||1))*100,100)}%"></div></div></div>
+      <div class="stat-card"><div class="stat-label">This month</div><div class="stat-value">${usage.month.requests}</div><div class="stat-sub">of ${usage.month.limit===-1?'∞':usage.month.limit} monthly</div><div class="progress-bar"><div class="progress-fill" style="width:${Math.min((usage.month.requests/(usage.month.limit||1))*100,100)}%"></div></div></div>
+      <div class="stat-card"><div class="stat-label">Tokens</div><div class="stat-value">${((usage.month.tokensInput+usage.month.tokensOutput)/1000).toFixed(1)}k</div><div class="stat-sub">this month</div></div>
+      <div class="stat-card"><div class="stat-label">Est. cost</div><div class="stat-value" style="color:var(--accent)">$${usage.month.costUsd}</div><div class="stat-sub">this month</div></div>
+    </div>`;
+}
 
-// Hold job — approved by user, waiting for approval
-router.post('/jobs/:id/hold', requireAuth, async (req: any, res) => {
-  await db.query(`UPDATE code_jobs SET status='awaiting_approval' WHERE id=$1 AND user_id=$2`, [req.params.id, req.user!.sub]);
-  res.json({ ok: true });
-});
+async function renderHistory() {
+  document.getElementById('mainContent').innerHTML = `<div style="padding:32px;max-width:900px;"><div style="margin-bottom:24px;"><h1 style="font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:800;">History</h1></div><div id="histContent" class="card table-wrap">Loading...</div></div>`;
+  const result = await api('GET', '/jobs');
+  const el = document.getElementById('histContent');
+  if (!result?.jobs?.length) { el.innerHTML=`<div style="text-align:center;padding:32px;color:var(--text-3);">No history yet</div>`; return; }
+  el.innerHTML = `<table><thead><tr><th>Script</th><th>Prompt</th><th>Location</th><th>Status</th><th>Date</th></tr></thead><tbody>${result.jobs.map(j=>`<tr><td style="color:var(--text);font-weight:500;">${j.script_name||'—'}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${j.prompt}">${j.prompt}</td><td>${j.insert_location}</td><td><span class="badge ${j.status==='inserted'?'badge-active':j.status==='failed'?'badge-error':'badge-free'}">${j.status}</span></td><td>${new Date(j.created_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;
+}
 
-// Release job — user approved, let plugin pick up parent + all child jobs
-router.post('/jobs/:id/release', requireAuth, async (req: any, res) => {
-  // Release parent
-  await db.query(`UPDATE code_jobs SET status='completed' WHERE id=$1 AND user_id=$2`, [req.params.id, req.user!.sub]);
-  // Release ALL child jobs for this user that are awaiting_approval and have code
-  // (they were all created from the same generation batch)
-  const result = await db.query(
-    `UPDATE code_jobs SET status='completed'
-     WHERE user_id=$1 AND status='awaiting_approval' AND generated_code IS NOT NULL
-     AND created_at >= NOW() - INTERVAL '10 minutes'
-     RETURNING id, script_name`,
-    [req.user!.sub]
-  );
-  logger.info('Released jobs', { parentId: req.params.id, childrenReleased: result.rows.length, children: result.rows.map((r: any) => r.script_name) });
-  res.json({ ok: true, released: result.rows.length });
-});
+async function renderBilling() {
+  document.getElementById('mainContent').innerHTML = `<div style="padding:32px;max-width:900px;"><div style="margin-bottom:24px;"><h1 style="font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:800;">Billing</h1></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+      <div class="card"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);margin-bottom:6px;">Free</div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:36px;font-weight:800;">$0</div><div style="font-size:13px;color:var(--text-3);margin-bottom:14px;">forever</div><button class="btn btn-ghost btn-block" disabled>Current</button></div>
+      <div class="card" style="border-color:var(--accent);"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);margin-bottom:6px;">Pro</div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:36px;font-weight:800;color:var(--accent);">$19</div><div style="font-size:13px;color:var(--text-3);margin-bottom:14px;">/month</div><button class="btn btn-primary btn-block" onclick="checkout('pro')">Upgrade</button></div>
+      <div class="card"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);margin-bottom:6px;">Team</div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:36px;font-weight:800;">$49</div><div style="font-size:13px;color:var(--text-3);margin-bottom:14px;">/month</div><button class="btn btn-ghost btn-block" onclick="checkout('team')">Upgrade</button></div>
+    </div></div>`;
+}
+async function checkout(p) { const r = await api('POST', '/billing/create-checkout', {planName:p}); if (r?.url) window.open(r.url,'_blank'); else toast('Checkout unavailable','error'); }
 
-// Cancel job — user rejected plan
-router.post('/jobs/:id/cancel', requireAuth, async (req: any, res) => {
-  await db.query(`UPDATE code_jobs SET status='cancelled' WHERE id=$1 AND user_id=$2`, [req.params.id, req.user!.sub]);
-  res.json({ ok: true });
-});
+async function renderSettings() {
+  document.getElementById('mainContent').innerHTML = `<div style="padding:32px;max-width:700px;"><div style="margin-bottom:24px;"><h1 style="font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:800;">Settings</h1></div>
+    <div class="card"><h3 style="font-weight:700;margin-bottom:16px;">Profile</h3>
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" value="${state.user?.email||''}" disabled style="opacity:0.5"/></div>
+      <div class="form-group"><label class="form-label">Display name</label><input class="form-input" type="text" id="displayName" value="${state.user?.display_name||''}" placeholder="Your name"/></div>
+      <div class="form-group"><label class="form-label">Roblox username</label><input class="form-input" type="text" id="robloxUsername" value="${state.user?.roblox_username||''}" placeholder="YourRobloxName"/></div>
+      <button class="btn btn-primary" onclick="saveProfile()">Save changes</button>
+    </div>
+    <div class="card"><h3 style="font-weight:700;margin-bottom:8px;">Sign out</h3><p style="color:var(--text-2);font-size:13px;margin-bottom:14px;">Sign out of Lychee AI on this device.</p><button class="btn btn-danger" onclick="doLogout()">Sign out</button></div></div>`;
+}
+async function saveProfile() {
+  const r = await api('PATCH', '/user/me', {displayName:document.getElementById('displayName').value,robloxUsername:document.getElementById('robloxUsername').value});
+  if (r?.message) toast('Profile saved ✓'); else toast('Save failed','error');
+}
 
-router.get('/jobs', requireAuth, async (req, res) => {
-  res.json({ jobs: await getUserJobHistory(req.user!.sub) });
-});
+async function renderAdmin() {
+  document.getElementById('mainContent').innerHTML = `<div style="padding:32px;max-width:900px;"><div style="margin-bottom:24px;"><h1 style="font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:800;">Admin Panel</h1></div>
+    <div class="stats-grid"><div class="stat-card"><div class="stat-label">Users</div><div class="stat-value" id="aU">—</div></div><div class="stat-card"><div class="stat-label">New 30d</div><div class="stat-value" id="aN">—</div></div><div class="stat-card"><div class="stat-label">MRR</div><div class="stat-value" id="aM">—</div></div><div class="stat-card"><div class="stat-label">Requests</div><div class="stat-value" id="aR">—</div></div></div>
+    <div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;"><h3>Users</h3><input class="form-input" style="width:200px;" placeholder="Search..." oninput="searchAdminUsers(this.value)"/></div><div id="usersTable">Loading...</div></div></div>`;
+  const stats = await api('GET', '/admin/stats');
+  if (stats) { document.getElementById('aU').textContent=parseInt(stats.users.total).toLocaleString(); document.getElementById('aN').textContent=parseInt(stats.users.new_30d).toLocaleString(); document.getElementById('aM').textContent='$'+(parseInt(stats.revenue.month_cents)/100).toLocaleString(); document.getElementById('aR').textContent=parseInt(stats.usage.total_requests).toLocaleString(); }
+  loadAdminUsers();
+}
+async function loadAdminUsers(search='') {
+  const result = await api('GET',`/admin/users?limit=50${search?`&search=${encodeURIComponent(search)}`:''}`);
+  const el = document.getElementById('usersTable');
+  if (!result?.users?.length) { el.innerHTML=`<div style="color:var(--text-3);font-size:13px;">No users</div>`; return; }
+  el.innerHTML=`<table><thead><tr><th>Email</th><th>Plan</th><th>Joined</th><th>Status</th><th></th></tr></thead><tbody>${result.users.map(u=>`<tr><td style="color:var(--text)">${u.email}</td><td><span class="badge badge-${u.plan_name||'free'}">${(u.plan_name||'free').toUpperCase()}</span></td><td>${new Date(u.created_at).toLocaleDateString()}</td><td><span class="badge ${u.is_banned?'badge-error':'badge-active'}">${u.is_banned?'Banned':'Active'}</span></td><td>${!u.is_banned?`<button class="btn btn-danger btn-sm" onclick="banUser('${u.id}')">Ban</button>`:''}</td></tr>`).join('')}</tbody></table>`;
+}
+let sT; function searchAdminUsers(v){clearTimeout(sT);sT=setTimeout(()=>loadAdminUsers(v),300);}
+async function banUser(id){const reason=prompt('Reason:');if(!reason)return;await api('POST',`/admin/users/${id}/ban`,{reason});toast('User banned');loadAdminUsers();}
 
-// ═══════════════════════════════════════════════════
-// PLUGIN HEARTBEAT & STATUS
-// ═══════════════════════════════════════════════════
-router.post('/plugin/heartbeat', requireAuth, async (req, res) => {
-  try {
-    await db.query(
-      `INSERT INTO plugin_sessions (user_id, last_seen) VALUES ($1, NOW())
-       ON CONFLICT (user_id) DO UPDATE SET last_seen = NOW()`,
-      [req.user!.sub]
-    );
-    res.json({ ok: true });
-  } catch { res.json({ ok: false }); }
-});
+function toast(msg, type='success') {
+  const el = document.createElement('div'); el.className='toast';
+  el.innerHTML=`<span style="color:${type==='error'?'var(--red)':'var(--accent)'}">${type==='error'?'✗':'✓'}</span> ${msg}`;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),3000);
+}
 
-router.get('/plugin/status', requireAuth, async (req, res) => {
-  try {
-    const result = await db.query(`SELECT last_seen FROM plugin_sessions WHERE user_id=$1`, [req.user!.sub]);
-    if (!result.rows.length) return res.json({ connected: false });
-    const secondsAgo = (Date.now() - new Date(result.rows[0].last_seen).getTime()) / 1000;
-    res.json({ connected: secondsAgo < 10 });
-  } catch { res.json({ connected: false }); }
-});
+// ── SCROLL ANIMATIONS ──
+function initScrollAnimations() {
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+  }, {threshold:0.1,rootMargin:'0px 0px -30px 0px'});
+  document.querySelectorAll('.reveal,.reveal-right').forEach(el => obs.observe(el));
+}
 
-// ═══════════════════════════════════════════════════
-// ADMIN ROUTES
-// ═══════════════════════════════════════════════════
-router.get('/admin/users', requireAuth, requireAdmin, async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-  const offset = parseInt(req.query.offset as string) || 0;
-  const search = req.query.search as string;
-  let query = `SELECT u.id, u.email, u.username, u.is_banned, u.created_at, sp.name AS plan_name, u.last_login_at
-               FROM users u LEFT JOIN subscription_plans sp ON u.plan_id=sp.id WHERE 1=1`;
-  const params: unknown[] = [];
-  if (search) { params.push(`%${search}%`); query += ` AND (u.email ILIKE $${params.length} OR u.username ILIKE $${params.length})`; }
-  params.push(limit, offset);
-  query += ` ORDER BY u.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
-  const { rows } = await db.query(query, params);
-  res.json({ users: rows });
-});
-
-router.post('/admin/users/:id/ban', requireAuth, requireAdmin, async (req, res) => {
-  const { reason } = req.body;
-  await db.query(`UPDATE users SET is_banned=true, ban_reason=$1 WHERE id=$2`, [reason, req.params.id]);
-  await db.query(`INSERT INTO audit_logs (actor_id, user_id, action, resource, resource_id, new_value) VALUES ($1,$2,'ban_user','user',$2,$3)`, [req.user!.sub, req.params.id, JSON.stringify({ reason })]);
-  res.json({ message: 'User banned' });
-});
-
-router.get('/admin/stats', requireAuth, requireAdmin, async (_req, res) => {
-  const [users, revenue, usage] = await Promise.all([
-    db.query(`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE created_at>=NOW()-INTERVAL '30 days') AS new_30d FROM users`),
-    db.query(`SELECT COALESCE(SUM(amount_cents),0) AS total_cents, COALESCE(SUM(amount_cents) FILTER (WHERE created_at>=DATE_TRUNC('month',NOW())),0) AS month_cents FROM billing_records WHERE status='paid'`),
-    db.query(`SELECT COUNT(*) AS total_requests, COALESCE(SUM(tokens_input+tokens_output),0) AS total_tokens FROM usage_logs WHERE success=true AND created_at>=DATE_TRUNC('month',NOW())`),
-  ]);
-  res.json({ users: users.rows[0], revenue: revenue.rows[0], usage: usage.rows[0] });
-});
-
-export default router;
+// ── INIT ──
+document.getElementById('landingPage').style.display = 'block';
+initScrollAnimations();
+</script>
+</body>
+</html>
