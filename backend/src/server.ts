@@ -15,7 +15,6 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 
 const app = express();
-app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
 
@@ -259,6 +258,21 @@ app.get('/api/v1/jobs/:id/status', requireAuth, async (req: any, res) => {
 app.post('/api/v1/jobs/:id/inserted', requireAuth, async (req: any, res) => {
   try { await markJobInserted(req.params.id, req.user.sub); res.json({ message: 'Job marked as inserted' }); }
   catch { res.status(500).json({ error: 'Failed to mark job inserted' }); }
+});
+
+app.post('/api/v1/jobs/:id/release', requireAuth, async (req: any, res) => {
+  await db.query(`UPDATE code_jobs SET status='completed' WHERE id=$1 AND user_id=$2`, [req.params.id, req.user.sub]);
+  const result = await db.query(
+    `UPDATE code_jobs SET status='completed' WHERE user_id=$1 AND status='awaiting_approval' AND generated_code IS NOT NULL AND created_at >= NOW() - INTERVAL '10 minutes' RETURNING id, script_name`,
+    [req.user.sub]
+  );
+  logger.info('Released jobs', { parentId: req.params.id, released: result.rows.length });
+  res.json({ ok: true, released: result.rows.length });
+});
+
+app.post('/api/v1/jobs/:id/cancel', requireAuth, async (req: any, res) => {
+  await db.query(`UPDATE code_jobs SET status='cancelled' WHERE id=$1 AND user_id=$2`, [req.params.id, req.user.sub]);
+  res.json({ ok: true });
 });
 
 app.get('/api/v1/jobs', requireAuth, async (req: any, res) => {
