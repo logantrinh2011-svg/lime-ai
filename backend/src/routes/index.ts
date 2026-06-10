@@ -310,13 +310,14 @@ router.post('/jobs/:id/hold', requireAuth, async (req: any, res) => {
 router.post('/jobs/:id/release', requireAuth, async (req: any, res) => {
   // Release parent
   await db.query(`UPDATE code_jobs SET status='completed' WHERE id=$1 AND user_id=$2`, [req.params.id, req.user!.sub]);
-  // Release child jobs (same prompt, have code, awaiting approval)
+  // Release ALL child jobs for this user that are awaiting_approval and have code
+  // (they were all created from the same generation batch)
   const result = await db.query(
     `UPDATE code_jobs SET status='completed'
      WHERE user_id=$1 AND status='awaiting_approval' AND generated_code IS NOT NULL
-     AND prompt = (SELECT prompt FROM code_jobs WHERE id=$2)
+     AND created_at >= NOW() - INTERVAL '10 minutes'
      RETURNING id, script_name`,
-    [req.user!.sub, req.params.id]
+    [req.user!.sub]
   );
   logger.info('Released jobs', { parentId: req.params.id, childrenReleased: result.rows.length, children: result.rows.map((r: any) => r.script_name) });
   res.json({ ok: true, released: result.rows.length });
